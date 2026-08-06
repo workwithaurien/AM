@@ -94,6 +94,11 @@ table.data tbody tr.clickable:hover{background:var(--surface-soft);cursor:pointe
 }
 @keyframes slideIn{from{transform:translateX(24px);opacity:0;}to{transform:translateX(0);opacity:1;}}
 .drawer-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.drawer-title{display:flex;align-items:center;gap:10px;min-width:0;}
+.drawer-avatar{
+  width:34px;height:34px;border-radius:50%;background:var(--accent-soft);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;overflow:hidden;flex:none;
+}
 .drawer-body{padding:18px;overflow:auto;flex:1;}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap;}
 .tab-btn{border:none;background:none;padding:9px 4px;margin-right:14px;font-size:var(--fs-sm);color:var(--muted);font-weight:600;border-bottom:2px solid transparent;}
