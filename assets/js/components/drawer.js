@@ -3,13 +3,16 @@
  * Usage: Drawer.open({ title, tabs: [{id,label,render}], footerHtml })
  */
 const Drawer = (() => {
-  function open({ title, tabs, footerHtml = "" }) {
+  function open({ title, tabs, footerHtml = "", avatarHtml = "" }) {
     close();
     const overlay = Utils.el(`<div class="drawer-overlay" id="activeDrawerOverlay"></div>`);
     const drawer = Utils.el(`
       <aside class="drawer" id="activeDrawer" role="dialog" aria-label="${Utils.escapeHtml(title)}">
         <div class="drawer-head">
-          <h3>${Utils.escapeHtml(title)}</h3>
+          <div class="drawer-title">
+            ${avatarHtml ? `<div class="drawer-avatar">${avatarHtml}</div>` : ""}
+            <h3>${Utils.escapeHtml(title)}</h3>
+          </div>
           <button class="close-x" aria-label="Close">\u2715</button>
         </div>
         <div class="drawer-body">
