@@ -40,7 +40,7 @@ const PageEmployees = (() => {
     grid.innerHTML = list.map((e, i) => `
       <div class="emp-card" data-index="${i}">
         <div class="e-top">
-          <div class="emp-avatar">${Utils.initials(e.name)}</div>
+          <div class="emp-avatar">${Utils.avatarInner(e)}</div>
           <div>
             <div class="emp-name">${Utils.escapeHtml(e.name)}</div>
             <div class="emp-role">${Utils.escapeHtml(e.designation)}</div>
@@ -85,6 +85,7 @@ const PageEmployees = (() => {
     const footerHtml = `<button class="btn ${emp.status === "Disabled" ? "" : "danger"} sm" id="statusBtn">${emp.status === "Disabled" ? "Enable Employee" : "Disable Employee"}</button>`;
     const drawer = Drawer.open({
       title: emp.name,
+      avatarHtml: Utils.avatarInner(emp),
       footerHtml,
       tabs: [
         { id: "basic", label: "Basic Info", render: () => `
