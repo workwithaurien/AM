@@ -62,7 +62,7 @@ body.login-body{
 .emp-card{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);padding:16px;cursor:pointer;transition:box-shadow .12s ease;}
 .emp-card:hover{box-shadow:var(--shadow-md);}
 .emp-card .e-top{display:flex;gap:10px;align-items:center;}
-.emp-avatar{width:38px;height:38px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}
+.emp-avatar{width:38px;height:38px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;overflow:hidden;flex:none;}
 .emp-name{font-weight:700;font-size:var(--fs-sm);}
 .emp-role{font-size:var(--fs-xs);color:var(--muted);}
 .emp-details{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px;}
