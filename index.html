@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign In — Aurien Media</title>
+<meta name="description" content="Attendance, work reports, salary, and leave management for Aurien Media." />
+
+<!-- Favicon / installable app icons -->
+<link rel="icon" href="assets/images/icons/favicon-64.png" sizes="64x64" type="image/png" />
+<link rel="icon" href="assets/images/icons/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="assets/images/icons/apple-touch-icon.png" />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#002147" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Aurien Media" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+<!-- Link preview (Slack/WhatsApp/Discord/etc.) -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Aurien Media" />
+<meta property="og:title" content="Aurien Media — Employee Management System" />
+<meta property="og:description" content="Attendance, work reports, salary, and leave management for Aurien Media." />
+<meta property="og:image" content="https://workwithaurien.github.io/AM/assets/images/icons/og-cover.png" />
+<meta property="og:url" content="https://workwithaurien.github.io/AM/" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Aurien Media — Employee Management System" />
+<meta name="twitter:description" content="Attendance, work reports, salary, and leave management for Aurien Media." />
+<meta name="twitter:image" content="https://workwithaurien.github.io/AM/assets/images/icons/og-cover.png" />
+
+<link rel="stylesheet" href="assets/css/tokens.css" />
+<link rel="stylesheet" href="assets/css/base.css" />
+<link rel="stylesheet" href="assets/css/components.css" />
+<link rel="stylesheet" href="assets/css/pages.css" />
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <div class="login-logo"><span class="dot"></span> Aurien Media</div>
+    <div class="login-sub">Sign in with your employee ID</div>
+
+    <div class="login-error" id="loginError"></div>
+
+    <form id="loginForm">
+      <div class="field">
+        <label for="uid">ID</label>
+        <input class="input" id="uid" name="uid" type="text" placeholder="e.g. EMP001" required autocomplete="username" />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="password-field">
+          <input class="input" id="password" name="password" type="password" placeholder="Enter your password" required autocomplete="current-password" />
+          <button class="password-toggle" type="button" id="passwordToggle" aria-label="Show password" aria-pressed="false">
+            <svg class="ic-eye" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" />
+              <circle cx="10" cy="10" r="2.5" />
+            </svg>
+            <svg class="ic-eye-off" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+              <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" />
+              <circle cx="10" cy="10" r="2.5" />
+              <path d="M2.5 2.5l15 15" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <button class="btn" type="submit" id="loginSubmit" style="width:100%;justify-content:center;margin-top:6px">Sign In</button>
+    </form>
+  </div>
+
+  <script src="assets/js/core/utils.js"></script>
+  <script src="assets/js/core/auth.js"></script>
+  <script src="assets/js/components/loader.js"></script>
+  <script src="assets/js/core/api.js"></script>
+  <script src="assets/js/login.js"></script>
+  <script src="assets/js/core/pwa.js"></script>
+</body>
+</html>

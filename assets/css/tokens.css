@@ -1,0 +1,62 @@
+/* ===== Design tokens ===== */
+:root{
+  /* surface */
+  --bg:#f6f7f9;
+  --surface:#ffffff;
+  --surface-soft:#f0f1f4;
+  --border:#e3e5ea;
+  --border-strong:#d3d6dd;
+
+  /* ink */
+  --ink:#181a20;
+  --ink-soft:#4d5160;
+  --muted:#8b8fa0;
+
+  /* brand — from the Aurien Media mark: navy peaks, gold star */
+  --accent:#0E2A4A;       /* navy — structural: nav, links, icon tiles, avatars */
+  --accent-ink:#ffffff;
+  --accent-soft:#E8EDF3;
+  --accent-strong:#081A30;
+
+  --cta:#F2A93C;          /* gold — reserved for primary actions only */
+  --cta-ink:#0E2A4A;      /* navy text on gold reads far better than white */
+  --cta-soft:#FDF1DD;
+  --cta-strong:#DC931F;
+
+  /* shell — sidebar + topbar only */
+  --shell-bg:#002147;
+  --shell-ink:#ffffff;
+  --shell-ink-soft:rgba(255,255,255,.68);
+  --shell-muted:rgba(255,255,255,.5);
+  --shell-border:rgba(255,255,255,.14);
+  --shell-hover:rgba(255,255,255,.08);
+  --shell-active:rgba(255,255,255,.12);
+
+  /* status */
+  --success:#1a9c6b;
+  --success-soft:#e7f7f0;
+  --warning:#b9750c;
+  --warning-soft:#fbf0dd;
+  --danger:#d1483f;
+  --danger-soft:#fbeae8;
+
+  /* radius / shadow */
+  --r-sm:6px;
+  --r-md:10px;
+  --r-lg:14px;
+  --shadow-sm:0 1px 3px rgba(14,42,74,.07);
+  --shadow-md:0 6px 20px rgba(14,42,74,.12);
+
+  /* type */
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --fs-xs:11px;
+  --fs-sm:12.5px;
+  --fs-md:13.5px;
+  --fs-lg:16px;
+  --fs-xl:20px;
+  --fs-xxl:26px;
+
+  /* layout */
+  --sidebar-w:216px;
+  --topbar-h:56px;
+}

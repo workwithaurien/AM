@@ -1,0 +1,127 @@
+/* ===== App shell layout ===== */
+#appShell{display:flex;height:100vh;overflow:hidden;}
+
+.sidebar{
+  width:var(--sidebar-w);
+  flex:none;
+  background:var(--shell-bg);
+  color:var(--shell-ink);
+  border-right:1px solid var(--shell-border);
+  display:flex;
+  flex-direction:column;
+  padding:18px 12px;
+}
+.sidebar-logo{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 8px 20px;font-weight:700;font-size:var(--fs-lg);
+}
+.sidebar-logo .dot{width:8px;height:8px;border-radius:50%;background:var(--cta);}
+.sidebar-nav{display:flex;flex-direction:column;gap:2px;flex:1;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 10px;border-radius:var(--r-sm);
+  font-size:var(--fs-md);color:var(--shell-ink-soft);font-weight:500;
+  border:none;background:none;width:100%;text-align:left;
+  transition:background .12s ease, color .12s ease;
+}
+.nav-item:hover{background:var(--shell-hover);color:var(--shell-ink);}
+.nav-item.active{background:var(--shell-active);color:var(--cta);font-weight:600;}
+.nav-item .ic{width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:var(--shell-muted);flex:none;}
+.nav-item .ic svg{width:17px;height:17px;}
+.nav-item:hover .ic,.nav-item.active .ic{color:inherit;}
+.sidebar-footer{font-size:var(--fs-xs);color:var(--shell-muted);padding:8px;}
+
+.main{flex:1;display:flex;flex-direction:column;min-width:0;}
+.topbar{
+  height:var(--topbar-h);flex:none;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 22px;background:var(--shell-bg);color:var(--shell-ink);border-bottom:1px solid var(--shell-border);
+}
+.topbar-left{display:flex;align-items:center;gap:12px;min-width:0;}
+.topbar-title{font-size:var(--fs-lg);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.topbar-right{display:flex;align-items:center;gap:12px;flex:none;}
+.hamburger-btn{
+  display:none;width:32px;height:32px;border-radius:var(--r-sm);border:1px solid var(--shell-border);
+  background:transparent;color:var(--shell-ink);align-items:center;justify-content:center;flex:none;
+}
+.hamburger-btn:hover{background:var(--shell-hover);}
+.hamburger-btn svg{width:18px;height:18px;}
+.sidebar-scrim{
+  position:fixed;inset:0;background:rgba(8,15,26,.5);z-index:110;
+  opacity:0;pointer-events:none;transition:opacity .2s ease;
+}
+.icon-btn{
+  width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
+  background:var(--surface);display:flex;align-items:center;justify-content:center;
+  font-size:14px;color:var(--ink-soft);position:relative;
+}
+.icon-btn:hover{background:var(--surface-soft);}
+.topbar-right .icon-btn{border-color:var(--shell-border);background:transparent;color:var(--shell-ink-soft);}
+.topbar-right .icon-btn:hover{background:var(--shell-hover);color:var(--shell-ink);}
+.avatar{
+  width:32px;height:32px;border-radius:50%;background:var(--accent-soft);
+  color:var(--accent);display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;overflow:hidden;
+}
+.topbar-right .avatar{background:rgba(255,255,255,.16);color:var(--shell-ink);}
+.avatar-img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
+.logout-btn{
+  border:1px solid var(--border);background:var(--surface);color:var(--ink-soft);
+  border-radius:var(--r-sm);padding:7px 12px;font-size:var(--fs-xs);font-weight:700;
+}
+.logout-btn:hover{background:var(--danger-soft);color:var(--danger);border-color:var(--danger-soft);}
+.topbar-right .logout-btn{border-color:var(--shell-border);background:transparent;color:var(--shell-ink-soft);}
+.topbar-right .logout-btn:hover{background:var(--danger-soft);color:var(--danger);border-color:var(--danger-soft);}
+
+/* notifications dropdown — explicit color needed: it sits inside .topbar,
+   which sets color:var(--shell-ink) (white) for the dark chrome, but this
+   panel itself has a light background and must not inherit that. */
+.notif-panel{
+  position:absolute;top:calc(100% + 8px);right:0;width:280px;max-height:340px;overflow:auto;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  box-shadow:var(--shadow-md);z-index:50;padding:6px;color:var(--ink);
+}
+.notif-item{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;padding:10px 10px;border-radius:var(--r-sm);}
+.notif-item.clickable{cursor:pointer;}
+.notif-item:hover{background:var(--surface-soft);}
+.notif-title{font-size:var(--fs-sm);font-weight:600;}
+.notif-date{font-size:var(--fs-xs);color:var(--muted);margin-top:2px;}
+.notif-empty,.notif-loading{padding:16px 10px;font-size:var(--fs-sm);color:var(--muted);display:flex;align-items:center;gap:8px;}
+.notif-clear{border:none;background:none;color:var(--muted);font-size:14px;line-height:1;padding:3px 5px;border-radius:4px;flex:none;}
+.notif-clear:hover{background:var(--danger-soft);color:var(--danger);}
+.notif-dot{
+  position:absolute;top:1px;right:1px;width:9px;height:9px;border-radius:50%;
+  background:var(--danger);border:2px solid var(--shell-bg);display:none;
+}
+.notif-dot.show{display:block;}
+.content{flex:1;overflow:auto;padding:22px 26px 60px;}
+
+/* responsive */
+@media (max-width: 900px){
+  .hamburger-btn{display:flex;}
+  .sidebar{
+    position:fixed;top:0;left:0;bottom:0;z-index:120;
+    width:250px;max-width:80vw;
+    transform:translateX(-100%);
+    transition:transform .22s ease;
+    box-shadow:var(--shadow-md);
+  }
+  #appShell.sidebar-open .sidebar{transform:translateX(0);}
+  #appShell.sidebar-open .sidebar-scrim{opacity:1;pointer-events:all;}
+
+  /* Let the page itself scroll instead of trapping scroll inside .content.
+     The fixed-100vh + inner-overflow:auto shell is fine on desktop, but on
+     real mobile browsers dynamic viewport height (address bar show/hide)
+     and nested-scroll gestures make it unreliable — content near the
+     bottom of a page can end up effectively unreachable. Topbar goes
+     sticky so it still stays put while the page scrolls normally. */
+  #appShell{height:auto;min-height:100vh;overflow:visible;}
+  .main{overflow:visible;}
+  .content{overflow:visible;height:auto;}
+  .topbar{position:sticky;top:0;z-index:80;}
+}
+@media (max-width: 640px){
+  .notif-panel{width:240px;}
+  .topbar{padding:0 14px;}
+  .content{padding:16px 14px 40px;}
+}
