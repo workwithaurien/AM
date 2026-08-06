@@ -1,19 +1,16 @@
 /**
  * settings.js — admin panel, reached only via the topbar gear icon.
- * Company Name / Working Days Per Month read from and write to the
- * "Settings" key/value sheet — Working Days Per Month feeds directly
- * into every salary calculation (see computeSalary_ in Code.gs).
+ * Company Name reads from and writes to the "Settings" key/value sheet.
  */
 const PageSettings = (() => {
   async function render(mount) {
     const res = await Api.call("getSettings");
-    const settings = res.ok ? res : { companyName: "Aurien Media", workingDaysPerMonth: 26 };
+    const settings = res.ok ? res : { companyName: "Aurien Media" };
 
     mount.innerHTML = `
       <div class="settings-block card">
         <div class="card-title">Company Info</div>
         <div class="field"><label>Company Name</label><input class="input" id="companyName" value="${Utils.escapeHtml(settings.companyName)}" /></div>
-        <div class="field"><label>Working Days / Month</label><input class="input" type="number" min="1" id="workingDaysPerMonth" value="${settings.workingDaysPerMonth}" /></div>
       </div>
       <div class="settings-block card">
         <div class="card-title">User Roles &amp; Permissions</div>
@@ -31,8 +28,7 @@ const PageSettings = (() => {
     `;
     document.getElementById("saveSettingsBtn").addEventListener("click", async () => {
       const companyName = document.getElementById("companyName").value.trim();
-      const workingDaysPerMonth = Number(document.getElementById("workingDaysPerMonth").value) || 26;
-      const saveRes = await Api.call("saveSettings", { companyName, workingDaysPerMonth });
+      const saveRes = await Api.call("saveSettings", { companyName });
       if (saveRes.ok) {
         Toast.show("Settings saved", "success");
       } else {
