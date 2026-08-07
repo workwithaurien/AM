@@ -13,7 +13,7 @@ const PageWorkReports = (() => {
     { key: "rejected", label: "Rejected" },
     { key: "remark", label: "Remark" }
   ];
-  const WORK_TYPES = ["Image Creatives", "Video Creatives", "Long Form Videos", "Short Form Videos", "Finding Influencers"];
+  const WORK_TYPES = ["Image Creatives", "Video Creatives", "Long Form Videos", "Short Form Videos", "Finding Influencers", "Others"];
 
   let allReports = [];
   let searchTerm = "";
@@ -106,9 +106,12 @@ const PageWorkReports = (() => {
           <input class="input" type="text" name="employeeName" value="${Utils.escapeHtml(user.name)}" readonly />
           <span class="card-sub" style="margin-top:-2px">Filled automatically from your login — not editable</span></div>
         <div class="field"><label>Work Type</label>
-          <select class="input" name="workType">
+          <select class="input" name="workType" id="wrWorkType">
             ${WORK_TYPES.map(v => `<option value="${v}">${v}</option>`).join("")}
           </select></div>
+        <div class="field" id="wrWorkTypeOtherField" style="display:none">
+          <label>Please specify</label>
+          <input class="input" type="text" name="workTypeOther" id="wrWorkTypeOther" placeholder="e.g. Podcast Editing" /></div>
         <div class="grid grid-3">
           <div class="field"><label>Given</label><input class="input" type="number" min="0" name="given" value="0" required /></div>
           <div class="field"><label>Completed</label><input class="input" type="number" min="0" name="completed" value="0" required /></div>
@@ -124,10 +127,24 @@ const PageWorkReports = (() => {
     `;
     const overlay = Modal.open({ title: "Submit Work Report", bodyHtml, footerHtml });
     overlay.querySelector("#wrCancel").addEventListener("click", Modal.close);
+
+    // "Others" swaps in a free-text field — the typed value is what
+    // actually gets saved as Work Type, not the literal word "Others".
+    const workTypeSelect = overlay.querySelector("#wrWorkType");
+    const otherField = overlay.querySelector("#wrWorkTypeOtherField");
+    const otherInput = overlay.querySelector("#wrWorkTypeOther");
+    workTypeSelect.addEventListener("change", () => {
+      const isOther = workTypeSelect.value === "Others";
+      otherField.style.display = isOther ? "" : "none";
+      otherInput.required = isOther;
+    });
+
     overlay.querySelector("#wrForm").addEventListener("submit", async e => {
       e.preventDefault();
       const fd = new FormData(e.target);
       const payload = Object.fromEntries(fd.entries());
+      if (payload.workType === "Others") payload.workType = payload.workTypeOther.trim();
+      delete payload.workTypeOther;
       ["given", "completed", "rejected"].forEach(k => (payload[k] = Number(payload[k])));
       const res = await Api.call("submitWorkReport", payload);
       if (res.ok) {
