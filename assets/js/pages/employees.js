@@ -114,7 +114,9 @@ const PageEmployees = (() => {
             [{ key: "date", label: "Date" }, { key: "client", label: "Client" }, { key: "type", label: "Type" }],
             empReports.map(r => ({ date: Utils.formatDate(r.date), client: r.clientName, type: r.workType }))
           ) },
-        { id: "documents", label: "Documents", render: () => `<div class="card-sub">No documents uploaded yet.</div>` }
+        { id: "documents", label: "Documents", render: () => emp.documentsFolderUrl
+            ? `<a class="btn secondary sm" href="${Utils.escapeHtml(emp.documentsFolderUrl)}" target="_blank" rel="noopener">Open Documents Folder</a>`
+            : `<div class="card-sub">No documents folder linked yet — add one from "Edit Details" below.</div>` }
       ]
     });
 
@@ -409,6 +411,9 @@ const PageEmployees = (() => {
           <select class="input" name="employmentType">
             ${EMPLOYMENT_TYPES.map(t => `<option value="${t}" ${t === emp.employmentType ? "selected" : ""}>${t}</option>`).join("")}
           </select></div>
+        <div class="field"><label>Documents Folder URL</label>
+          <input class="input" type="url" name="documentsFolderUrl" value="${Utils.escapeHtml(emp.documentsFolderUrl || "")}" placeholder="e.g. Google Drive folder link" />
+          <span class="card-sub" style="margin-top:-2px">Shown as an "Open Documents Folder" button on this employee's Documents tab.</span></div>
         <div class="card-sub">Only Full Time employees get the 1.5 paid leave days/month benefit when their salary is calculated — Part Time and Intern leave days aren't paid.</div>
       </form>`;
     const footerHtml = `
@@ -423,11 +428,15 @@ const PageEmployees = (() => {
         uid: emp.uid,
         designation: fd.get("designation"),
         department: fd.get("department"),
-        employmentType: fd.get("employmentType")
+        employmentType: fd.get("employmentType"),
+        documentsFolderUrl: fd.get("documentsFolderUrl")
       };
       const res = await Api.call("updateEmployeeDetails", payload);
       if (res.ok) {
-        Object.assign(emp, { designation: payload.designation, department: payload.department, employmentType: payload.employmentType });
+        Object.assign(emp, {
+          designation: payload.designation, department: payload.department,
+          employmentType: payload.employmentType, documentsFolderUrl: payload.documentsFolderUrl
+        });
         Toast.show("Details updated", "success");
         Modal.close();
       } else {
