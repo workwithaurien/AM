@@ -1,2 +1,6 @@
 # Claude Code local settings — not part of the deployed site
 .claude/
+
+# Backend source — deployed by pasting into the Apps Script editor and
+# redeploying, not through GitHub/GitHub Pages. Kept locally, not tracked.
+apps-script/
