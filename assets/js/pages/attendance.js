@@ -13,7 +13,7 @@ const PageAttendance = (() => {
   async function render(mount) {
     const user = Auth.getUser();
     const [holRes, attRes] = await Promise.all([
-      Api.call("getHolidays"),
+      fetchHolidays(),
       Api.call("getAttendanceCalendar")
     ]);
     if (!holRes.ok) { mount.innerHTML = `<div class="empty-state">${holRes.error}</div>`; return; }
@@ -25,11 +25,28 @@ const PageAttendance = (() => {
     mount.innerHTML = user.role === "admin" ? adminView(holidays, attendance) : employeeView(holidays, attendance, paidLeave);
 
     if (user.role === "admin") {
-      document.getElementById("addHolidayBtn").addEventListener("click", () => openAddHoliday());
+      document.getElementById("addHolidayBtn").addEventListener("click", () => openHolidayModal(null));
+      mount.querySelectorAll("[data-edit-holiday]").forEach(btn => {
+        btn.addEventListener("click", () => openHolidayModal(holidays.find(h => h.id === btn.dataset.editHoliday)));
+      });
+      mount.querySelectorAll("[data-delete-holiday]").forEach(btn => {
+        btn.addEventListener("click", () => deleteHoliday(btn.dataset.deleteHoliday));
+      });
     } else {
       document.getElementById("prevMonth").addEventListener("click", () => shiftMonth(-1));
       document.getElementById("nextMonth").addEventListener("click", () => shiftMonth(1));
     }
+  }
+
+  /** Holidays rarely change within a session, so cache them in State
+   *  instead of refetching on every Attendance page visit — invalidated
+   *  by clearing the cache key whenever one is added/edited/deleted. */
+  async function fetchHolidays() {
+    const cached = State.get("holidays");
+    if (cached) return { ok: true, holidays: cached };
+    const res = await Api.call("getHolidays");
+    if (res.ok) State.set("holidays", res.holidays);
+    return res;
   }
 
   function countsFor(holidays, attendance, year, monthIndex) {
@@ -145,6 +162,10 @@ const PageAttendance = (() => {
                   <span class="h-date">${Utils.formatDate(h.date)}</span>
                   <span class="h-name">${Utils.escapeHtml(h.name)}</span>
                   ${Badge.render(h.type, h.type === "National" ? "success" : "neutral")}
+                  <div class="h-actions">
+                    <button class="btn secondary sm" data-edit-holiday="${h.id}">Edit</button>
+                    <button class="btn danger sm" data-delete-holiday="${h.id}">Delete</button>
+                  </div>
                 </div>`).join("")}
             </div>` : `<div class="card-sub" style="margin-top:8px">No holidays.</div>`}
           </div>`).join("")}
@@ -159,30 +180,52 @@ const PageAttendance = (() => {
     render(document.getElementById("content"));
   }
 
-  function openAddHoliday() {
+  /** Shared by "+ Add Holiday" and each row's "Edit" button.
+   *  existing === null → new holiday (Add); existing === a holiday
+   *  object → editing it in place (Save Changes). */
+  function openHolidayModal(existing) {
+    const isEdit = !!existing;
     const bodyHtml = `
       <form id="holForm">
-        <div class="field"><label>Date</label><input class="input" type="date" name="date" required /></div>
-        <div class="field"><label>Name</label><input class="input" type="text" name="name" required /></div>
+        <div class="field"><label>Date</label><input class="input" type="date" name="date" value="${isEdit ? existing.date : ""}" required /></div>
+        <div class="field"><label>Name</label><input class="input" type="text" name="name" value="${isEdit ? Utils.escapeHtml(existing.name) : ""}" required /></div>
         <div class="field"><label>Type</label>
-          <select class="input" name="type"><option>National</option><option>Festival</option></select></div>
+          <select class="input" name="type">
+            <option ${isEdit && existing.type === "National" ? "selected" : ""}>National</option>
+            <option ${isEdit && existing.type === "Festival" ? "selected" : ""}>Festival</option>
+          </select></div>
       </form>`;
     const footerHtml = `<button class="btn secondary" type="button" id="holCancel">Cancel</button>
-      <button class="btn" type="submit" form="holForm">Add Holiday</button>`;
-    const overlay = Modal.open({ title: "Add Corporate Holiday", bodyHtml, footerHtml });
+      <button class="btn" type="submit" form="holForm">${isEdit ? "Save Changes" : "Add Holiday"}</button>`;
+    const overlay = Modal.open({ title: isEdit ? "Edit Holiday" : "Add Corporate Holiday", bodyHtml, footerHtml });
     overlay.querySelector("#holCancel").addEventListener("click", Modal.close);
     overlay.querySelector("#holForm").addEventListener("submit", async e => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const res = await Api.call("addHoliday", { date: fd.get("date"), name: fd.get("name"), type: fd.get("type") });
+      const payload = { date: fd.get("date"), name: fd.get("name"), type: fd.get("type") };
+      if (isEdit) payload.id = existing.id;
+      const res = await Api.call(isEdit ? "updateHoliday" : "addHoliday", payload);
       if (res.ok) {
-        Toast.show("Holiday added", "success");
+        Toast.show(isEdit ? "Holiday updated" : "Holiday added", "success");
         Modal.close();
+        State.set("holidays", null); // invalidate the cache — see fetchHolidays
         render(document.getElementById("content"));
       } else {
-        Toast.show(res.error || "Could not add holiday", "error");
+        Toast.show(res.error || `Could not ${isEdit ? "update" : "add"} the holiday`, "error");
       }
     });
+  }
+
+  async function deleteHoliday(id) {
+    if (!confirm("Permanently delete this holiday? This can't be undone.")) return;
+    const res = await Api.call("deleteHoliday", { id });
+    if (res.ok) {
+      Toast.show("Holiday deleted", "success");
+      State.set("holidays", null); // invalidate the cache — see fetchHolidays
+      render(document.getElementById("content"));
+    } else {
+      Toast.show(res.error || "Could not delete the holiday", "error");
+    }
   }
 
   return { render };
