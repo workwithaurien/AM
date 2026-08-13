@@ -14,6 +14,14 @@
   const passwordInput = document.getElementById("password");
   const passwordToggle = document.getElementById("passwordToggle");
 
+  // Set by Api.call when a stale session gets force-logged-out (see api.js).
+  const loginNotice = sessionStorage.getItem("ems_login_notice");
+  if (loginNotice) {
+    sessionStorage.removeItem("ems_login_notice");
+    errorBox.textContent = loginNotice;
+    errorBox.classList.add("show");
+  }
+
   passwordToggle.addEventListener("click", () => {
     const showing = passwordInput.type === "text";
     passwordInput.type = showing ? "password" : "text";
@@ -39,7 +47,7 @@
     submitBtn.textContent = "Sign In";
 
     if (res.ok) {
-      Auth.setSession(res.user, res.token);
+      Auth.setSession(res.user, res.token, document.getElementById("rememberMe").checked);
       window.location.href = "app.html";
     } else {
       errorBox.textContent = res.error || "Login failed.";
