@@ -37,6 +37,7 @@ function doPost(e) {
       case 'getDashboard':     return getDashboard_(session);
       case 'getWorkReports':   return getWorkReports_(session, payload);
       case 'submitWorkReport': return submitWorkReport_(session, payload);
+      case 'updateWorkReport': return updateWorkReport_(session, payload);
       case 'getSalary':        return getSalary_(session, payload);
       case 'updateSalary':     return requireRole_(session, 'admin') ? updateSalary_(payload) : fail_('Admin only.');
       case 'getDriveLinks':    return getDriveLinks_();
@@ -47,20 +48,26 @@ function doPost(e) {
       case 'updateEmployeeDetails': return requireRole_(session, 'admin') ? updateEmployeeDetails_(payload) : fail_('Admin only.');
       case 'createEmployee':   return requireRole_(session, 'admin') ? createEmployee_(payload) : fail_('Admin only.');
       case 'setEmployeeStatus': return requireRole_(session, 'admin') ? setEmployeeStatus_(payload) : fail_('Admin only.');
+      case 'resetPassword':    return requireRole_(session, 'admin') ? resetPassword_(payload) : fail_('Admin only.');
       case 'getHolidays':      return getHolidays_();
       case 'addHoliday':       return requireRole_(session, 'admin') ? addHoliday_(payload) : fail_('Admin only.');
+      case 'updateHoliday':    return requireRole_(session, 'admin') ? updateHoliday_(payload) : fail_('Admin only.');
+      case 'deleteHoliday':    return requireRole_(session, 'admin') ? deleteHoliday_(payload) : fail_('Admin only.');
       case 'applyLeave':       return applyLeave_(session, payload);
       case 'getLeaves':        return getLeaves_(session, payload);
       case 'approveLeave':     return requireRole_(session, 'admin') ? approveLeave_(payload) : fail_('Admin only.');
+      case 'deleteLeaveRequest': return requireRole_(session, 'admin') ? deleteLeaveRequest_(payload) : fail_('Admin only.');
       case 'requestAdvance':   return requestAdvance_(session, payload);
       case 'getAdvanceRequests': return getAdvanceRequests_(session, payload);
       case 'approveAdvance':   return requireRole_(session, 'admin') ? approveAdvance_(payload) : fail_('Admin only.');
+      case 'deleteAdvanceRequest': return requireRole_(session, 'admin') ? deleteAdvanceRequest_(payload) : fail_('Admin only.');
       case 'issueLetter':      return requireRole_(session, 'admin') ? issueLetter_(session, payload) : fail_('Admin only.');
       case 'getLetters':       return getLetters_(session, payload);
       case 'changePassword':   return changePassword_(session, payload);
       case 'getSettings':      return getSettings_();
       case 'saveSettings':     return requireRole_(session, 'admin') ? saveSettings_(payload) : fail_('Admin only.');
       case 'assignDailyTask':  return requireRole_(session, 'admin') ? assignDailyTask_(session, payload) : fail_('Admin only.');
+      case 'closeSalaryMonth': return requireRole_(session, 'admin') ? closeSalaryMonth_(payload) : fail_('Admin only.');
       default:
         return fail_('Unknown action: ' + action);
     }
@@ -80,7 +87,10 @@ function doGet() {
  * Designation | Department | Employment Type | Status ("Active"/"Disabled"
  * — a Disabled user can't log in, see the check below) | Photo URL (a link
  * to a photo hosted elsewhere, e.g. GitHub — shown in the topbar avatar
- * and Profile page in place of initials; blank falls back to initials)
+ * and Profile page in place of initials; blank falls back to initials) |
+ * Documents Folder URL (a link to wherever that employee's documents are
+ * kept, e.g. a Google Drive folder — shown as an "Open" button on the
+ * Employees drawer's Documents tab; blank shows "No documents" instead)
  *
  * SECURITY NOTE: passwords are compared in plain text, matching the
  * "stored and fetched from sheets" requirement for this internal tool.
@@ -108,7 +118,8 @@ function login_(payload) {
     designation: user.designation || 'Employee',
     department: user.department || '',
     employmentType: user.employmentType || 'Full Time',
-    photoUrl: user.photoUrl || ''
+    photoUrl: user.photoUrl || '',
+    documentsFolderUrl: user.documentsFolderUrl || ''
   };
   CacheService.getScriptCache().put('session_' + token, JSON.stringify(session), 6 * 60 * 60);
 
@@ -144,10 +155,11 @@ function getDashboard_(session) {
   // computeSalary_ returns null when the employee has no SalaryBase row yet
   // (e.g. a newly added employee) — fall back to zeros instead of letting
   // the dashboard crash on salary.presentDays / salary.totalWorkingDays.
+  var now_ = new Date();
   var salary = computeSalary_(session.uid) ||
-    { monthlySalary: 0, presentDays: 0, actualPresentDays: 0, paidLeaveUsed: 0, paidLeaveEligible: false,
+    { monthlySalary: 0, presentDays: 0, actualPresentDays: 0, sundayBonusDays: 0, paidLeaveTaken: 0, paidLeaveUsed: 0, paidLeaveUnpaid: 0, paidLeaveEligible: false,
       paidLeaveRemaining: 0, paidLeaveCashoutDays: 0,
-      totalWorkingDays: getWorkingDaysPerMonth_(), advanceTaken: 0, history: [] };
+      totalWorkingDays: new Date(now_.getFullYear(), now_.getMonth() + 1, 0).getDate(), advanceTaken: 0, history: [] };
 
   var result = {
     announcements: announcements,
@@ -192,8 +204,8 @@ function getDashboard_(session) {
 
 
 /* ========================== WORK REPORTS ===============================
- * Sheet "WorkReports" columns (must match this order/spelling exactly):
- * Date | Client Name | Employee Name | Work Type | Given | Completed | Rejected | Remark
+ * Sheet "WorkReports" columns: ID | Date | Client Name | Employee Name |
+ * Work Type | Given | Completed | Rejected | Remark | Submitted At
  * ====================================================================== */
 
 function getWorkReports_(session, payload) {
@@ -210,6 +222,7 @@ function getWorkReports_(session, payload) {
 function submitWorkReport_(session, payload) {
   if (!payload.date || !payload.clientName) return fail_('Date and Client Name are required.');
   appendRow_('WorkReports', {
+    id: Utilities.getUuid(),
     date: payload.date,
     clientName: payload.clientName,
     employeeName: session.name, // always the logged-in employee — never trust a client-supplied name
@@ -223,9 +236,33 @@ function submitWorkReport_(session, payload) {
   return ok_();
 }
 
+/** Employees can edit their own reports; admins can edit anyone's —
+ *  enforced here, not just hidden in the UI. Employee Name is never
+ *  editable, same as on submit — it stays locked to whoever originally
+ *  filed the report. */
+function updateWorkReport_(session, payload) {
+  if (!payload.id) return fail_('Report ID is required.');
+  if (!payload.date || !payload.clientName) return fail_('Date and Client Name are required.');
+  var report = sheetToObjects_('WorkReports').find(function (r) { return r.id === payload.id; });
+  if (!report) return fail_('Work report not found.');
+  if (session.role !== 'admin' && report.employeeName !== session.name) {
+    return fail_('You can only edit your own work reports.');
+  }
+  updateRowById_('WorkReports', payload.id, {
+    date: payload.date,
+    clientName: payload.clientName,
+    workType: payload.workType || '',
+    given: Number(payload.given) || 0,
+    completed: Number(payload.completed) || 0,
+    rejected: Number(payload.rejected) || 0,
+    remark: payload.remark || ''
+  });
+  return ok_();
+}
+
 function formatWorkReportRow_(r) {
   return {
-    date: formatDate_(r.date), clientName: r.clientName, employeeName: r.employeeName,
+    id: r.id, date: formatDate_(r.date), clientName: r.clientName, employeeName: r.employeeName,
     workType: r.workType, given: r.given, completed: r.completed, rejected: r.rejected, remark: r.remark
   };
 }
@@ -249,8 +286,11 @@ function formatWorkReportRow_(r) {
  * so the numbers are always correct as of whenever they're read, even if
  * nobody opened the app for a few months in between.
  *
- * totalWorkingDays comes from the Settings sheet ("Working Days Per
- * Month", editable from the Settings page), falling back to 26 if unset.
+ * totalWorkingDays is the actual number of days in the current calendar
+ * month (30/31, 28/29 in Feb). presentDays also auto-includes every
+ * Sunday that's already passed this month and has no Attendance row at
+ * all — Sunday is a paid weekly off, not something anyone marks
+ * attendance for.
  * ====================================================================== */
 
 var PAID_LEAVE_DAYS_PER_MONTH = 1.5;
@@ -373,6 +413,32 @@ function getSalary_(session, payload) {
   return ok_({ salary: salary, uid: uid });
 }
 
+/** ISO dates ("yyyy-MM-dd") of every Sunday between `from` and `to`
+ *  (inclusive JS Date objects, local midnight) that uid has no
+ *  Attendance row for AT ALL — these are the Sundays that count as a
+ *  paid day off automatically, same as a Present day. Checking "no row
+ *  at all" (not just "not Present") means a Sunday someone already
+ *  worked or that's already marked Leave/Absent is never touched.
+ *  Shared by computeSalary_ (this month's bonus count) and
+ *  getAttendanceCalendar_ (so the calendar/Present-Days the viewer sees
+ *  always matches what they're actually paid for) — one rule, one place. */
+function freeSundays_(uid, from, to) {
+  var marked = {};
+  sheetToObjects_('Attendance').forEach(function (a) {
+    if (a.uid === uid) marked[formatDate_(a.date)] = true;
+  });
+  var out = [];
+  var cursor = new Date(from);
+  while (cursor <= to) {
+    if (cursor.getDay() === 0) {
+      var iso = Utilities.formatDate(cursor, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      if (!marked[iso]) out.push(iso);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
 function computeSalary_(uid) {
   var base = sheetToObjects_('SalaryBase').find(function (b) { return b.uid === uid; });
   if (!base) return null;
@@ -381,20 +447,34 @@ function computeSalary_(uid) {
   var cashoutDays = leaveCashoutDaysFor_(uid);
 
   var now = new Date();
+  var year = now.getFullYear(), month = now.getMonth();
   var presentDays = sheetToObjects_('Attendance').filter(function (a) {
     if (a.uid !== uid || a.status !== 'Present') return false;
     var d = new Date(a.date);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    return d.getMonth() === month && d.getFullYear() === year;
   }).length;
 
-  var totalWorkingDays = getWorkingDaysPerMonth_();
+  // Sunday is a paid weekly off, not something anyone marks attendance
+  // for — any Sunday that's already passed this month counts as present
+  // automatically (see freeSundays_).
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  var monthStart = new Date(year, month, 1);
+  var lastDayToCount = new Date(year, month, Math.min(now.getDate(), daysInMonth));
+  var sundayBonusDays = freeSundays_(uid, monthStart, lastDayToCount).length;
+
+  // The full calendar month (30/31, or 28/29 in Feb) — not an
+  // admin-configurable "working days" figure.
+  var totalWorkingDays = daysInMonth;
   var history = sheetToObjects_('SalaryHistory').filter(function (h) { return h.uid === uid; });
 
   return {
     monthlySalary: Number(base.monthlySalary),
-    presentDays: presentDays + leave.used + cashoutDays, // what earnings are computed from
+    presentDays: presentDays + sundayBonusDays + leave.used + cashoutDays, // what earnings are computed from
     actualPresentDays: presentDays,
+    sundayBonusDays: sundayBonusDays,
+    paidLeaveTaken: leave.taken,
     paidLeaveUsed: leave.used,
+    paidLeaveUnpaid: Math.max(0, leave.taken - leave.used), // leave taken beyond the 1.5-day allowance — never added to presentDays
     paidLeaveEligible: leave.eligible,
     paidLeaveRemaining: leave.remaining,
     paidLeaveCashoutDays: cashoutDays,
@@ -415,6 +495,39 @@ function updateSalary_(payload) {
     advanceTaken: Number(payload.advanceTaken) || 0
   });
   return ok_();
+}
+
+/** Admin-only: records this month's live-computed salary as a permanent
+ *  SalaryHistory row (Status "Paid") and resets Advance Taken to 0,
+ *  since it's now been settled against this payout. Uses the exact same
+ *  computeSalary_ numbers shown everywhere else in the app, so the
+ *  recorded figures always match what was actually displayed at the
+ *  time of closing. Refuses to close the same uid+month twice. */
+function closeSalaryMonth_(payload) {
+  if (!payload.uid) return fail_('UID is required.');
+  var monthLabel = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMM yyyy');
+
+  var alreadyClosed = sheetToObjects_('SalaryHistory').some(function (h) {
+    return h.uid === payload.uid && formatMonthYear_(h.month) === monthLabel;
+  });
+  if (alreadyClosed) return fail_(monthLabel + ' has already been closed out for this employee.');
+
+  var salary = computeSalary_(payload.uid);
+  if (!salary) return fail_('No salary record found for this employee.');
+
+  var earned = Math.round(salary.monthlySalary / salary.totalWorkingDays * salary.presentDays);
+  var netPaid = earned - salary.advanceTaken;
+
+  appendRow_('SalaryHistory', {
+    uid: payload.uid, month: monthLabel, presentDays: salary.presentDays,
+    earned: earned, advance: salary.advanceTaken, netPaid: netPaid, status: 'Paid'
+  });
+
+  upsertRow_('SalaryBase', 'UID', payload.uid, {
+    uid: payload.uid, monthlySalary: salary.monthlySalary, advanceTaken: 0
+  });
+
+  return ok_({ netPaid: netPaid });
 }
 
 
@@ -439,7 +552,8 @@ function requestAdvance_(session, payload) {
 }
 
 /** Employees see their own requests; admins see one employee's
- *  (payload.uid) or everyone's when no uid is given. */
+ *  (payload.uid) or everyone's when no uid is given. Includes the
+ *  requester's name (looked up across ALL Users — see getLeaves_ for why). */
 function getAdvanceRequests_(session, payload) {
   var rows = sheetToObjects_('AdvanceRequests');
   if (session.role === 'admin' && payload && payload.uid) {
@@ -447,8 +561,10 @@ function getAdvanceRequests_(session, payload) {
   } else if (session.role !== 'admin') {
     rows = rows.filter(function (r) { return r.uid === session.uid; });
   }
+  var nameByUid = {};
+  sheetToObjects_('Users').forEach(function (u) { nameByUid[u.uid] = u.name; });
   rows = rows.map(function (r) {
-    return { id: r.id, uid: r.uid, amount: Number(r.amount), reason: r.reason, status: r.status, appliedOn: formatDate_(r.appliedOn) };
+    return { id: r.id, uid: r.uid, name: nameByUid[r.uid] || r.uid, amount: Number(r.amount), reason: r.reason, status: r.status, appliedOn: formatDate_(r.appliedOn) };
   }).sort(function (a, b) { return String(b.appliedOn).localeCompare(String(a.appliedOn)); });
   return ok_({ requests: rows });
 }
@@ -469,6 +585,45 @@ function approveAdvance_(payload) {
       advanceTaken: (base ? Number(base.advanceTaken) || 0 : 0) + Number(reqRow.amount)
     });
   }
+  return ok_();
+}
+
+/** Admin-only: permanently removes an advance salary request — for
+ *  undoing an accidental approval/rejection, mirroring
+ *  deleteLeaveRequest_. If it had been Approved, also reverses the
+ *  amount it added to SalaryBase.Advance Taken, so a deleted request
+ *  never leaves a stale advance balance behind. */
+function deleteAdvanceRequest_(payload) {
+  if (!payload.id) return fail_('Advance request ID is required.');
+  var sheet = getSheet_('AdvanceRequests');
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(function (h) { return String(h).trim(); });
+  var idCol = headers.indexOf('ID');
+  if (idCol === -1) return fail_('AdvanceRequests has no "ID" column.');
+
+  var rowIndex = -1, reqRow = null;
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][idCol]) === String(payload.id)) {
+      rowIndex = r;
+      reqRow = {};
+      headers.forEach(function (h, c) { reqRow[toCamel_(h)] = data[r][c]; });
+      break;
+    }
+  }
+  if (rowIndex === -1) return fail_('Advance request not found.');
+
+  if (reqRow.status === 'Approved') {
+    var base = sheetToObjects_('SalaryBase').find(function (b) { return b.uid === reqRow.uid; });
+    if (base) {
+      upsertRow_('SalaryBase', 'UID', reqRow.uid, {
+        uid: reqRow.uid,
+        monthlySalary: Number(base.monthlySalary) || 0,
+        advanceTaken: Math.max(0, (Number(base.advanceTaken) || 0) - Number(reqRow.amount))
+      });
+    }
+  }
+
+  sheet.deleteRow(rowIndex + 1);
   return ok_();
 }
 
@@ -522,6 +677,8 @@ function getEmployees_() {
         department: u.department || '',
         employmentType: u.employmentType || 'Full Time',
         status: u.status || 'Active',
+        photoUrl: u.photoUrl || '',
+        documentsFolderUrl: u.documentsFolderUrl || '',
         attendanceToday: todayRow ? todayRow.status : 'Not marked',
         onBreak: !!(breakStart && !breakEnd),
         todayLoginTime: todayRow ? formatTime_(todayRow.loginTime) : '',
@@ -552,19 +709,20 @@ function updateEmployeeDetails_(payload) {
   var fieldCols = {
     designation: headers.indexOf('Designation'),
     department: headers.indexOf('Department'),
-    employmentType: headers.indexOf('Employment Type')
+    employmentType: headers.indexOf('Employment Type'),
+    documentsFolderUrl: headers.indexOf('Documents Folder URL')
   };
 
   for (var r = 1; r < data.length; r++) {
     if (String(data[r][uidCol]) === String(payload.uid)) {
       var updated = false;
-      ['designation', 'department', 'employmentType'].forEach(function (key) {
+      ['designation', 'department', 'employmentType', 'documentsFolderUrl'].forEach(function (key) {
         if (payload[key] !== undefined && fieldCols[key] !== -1) {
           sheet.getRange(r + 1, fieldCols[key] + 1).setValue(payload[key]);
           updated = true;
         }
       });
-      if (!updated) return fail_('None of Designation/Department/Employment Type columns exist yet — run upgradeEMS() first.');
+      if (!updated) return fail_('None of Designation/Department/Employment Type/Documents Folder URL columns exist yet — run upgradeEMS() first.');
       return ok_();
     }
   }
@@ -613,6 +771,28 @@ function setEmployeeStatus_(payload) {
   for (var r = 1; r < data.length; r++) {
     if (String(data[r][uidCol]) === String(payload.uid)) {
       sheet.getRange(r + 1, statusCol + 1).setValue(payload.status);
+      return ok_();
+    }
+  }
+  return fail_('Employee not found.');
+}
+
+/** Admin-only: payload = { uid, newPassword }. Sets a new password
+ *  directly — unlike changePassword_ (self-service), this doesn't
+ *  require knowing the current one, for recovering an employee who's
+ *  locked out. */
+function resetPassword_(payload) {
+  if (!payload.uid || !payload.newPassword) return fail_('Employee and new password are required.');
+  if (String(payload.newPassword).length < 6) return fail_('New password must be at least 6 characters.');
+  var sheet = getSheet_('Users');
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(function (h) { return String(h).trim(); });
+  var uidCol = headers.indexOf('UID');
+  var passCol = headers.indexOf('Password');
+
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][uidCol]) === String(payload.uid)) {
+      sheet.getRange(r + 1, passCol + 1).setValue(String(payload.newPassword));
       return ok_();
     }
   }
@@ -739,6 +919,23 @@ function getAttendanceCalendar_(session, payload) {
         breakStart: formatTime_(a.breakStart), breakEnd: formatTime_(a.breakEnd)
       };
     });
+
+  // Sunday counts as a paid Present day automatically (see freeSundays_/
+  // computeSalary_) — inject synthetic Present rows for this year's free
+  // Sundays so the calendar and Present-Days count the viewer sees here
+  // always match what they're actually paid for, instead of showing a
+  // blank, uncolored Sunday while Salary silently counts it as present.
+  var yearStart = new Date(new Date().getFullYear(), 0, 1);
+  var today = new Date();
+  freeSundays_(uid, yearStart, today).forEach(function (iso) {
+    rows.push({ date: iso, status: 'Present', loginTime: '', logoutTime: '', breakStart: '', breakEnd: '' });
+  });
+  // Keep chronological order (oldest first, same as real sheet rows) —
+  // the synthetic Sundays above were appended out of order, and the
+  // Profile page's "last 5" attendance history (profile.js) relies on
+  // this array being date-sorted to pick the most recent entries correctly.
+  rows.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+
   var leave = paidLeaveStatus_(uid);
   leave.cashoutDays = leaveCashoutDaysFor_(uid);
   return ok_({ records: rows, paidLeave: leave });
@@ -755,6 +952,7 @@ function getAttendanceCalendar_(session, payload) {
 
 function applyLeave_(session, payload) {
   if (!payload.from || !payload.to) return fail_('From and To dates are required.');
+  if (payload.to < payload.from) return fail_("'To' date can't be before 'From' date.");
   var duration = payload.duration === 'Half Day' ? 'Half Day' : 'Full Day';
   if (duration === 'Half Day' && payload.from !== payload.to) {
     return fail_('Half Day leave must be a single date — From and To must match.');
@@ -774,7 +972,12 @@ function applyLeave_(session, payload) {
 }
 
 /** Employees see their own requests; admins see one employee's
- *  (payload.uid) or everyone's when no uid is given. */
+ *  (payload.uid) or everyone's when no uid is given. Includes the
+ *  requester's name (looked up across ALL Users, not just the employee
+ *  directory) since admins can apply for leave too — getEmployees_
+ *  deliberately excludes admins, so a name lookup limited to that list
+ *  would show an admin's raw UID instead of their name in the
+ *  all-employees "Approve Leaves" view. */
 function getLeaves_(session, payload) {
   var rows = sheetToObjects_('LeaveRequests');
   if (session.role === 'admin' && payload && payload.uid) {
@@ -782,9 +985,11 @@ function getLeaves_(session, payload) {
   } else if (session.role !== 'admin') {
     rows = rows.filter(function (r) { return r.uid === session.uid; });
   }
+  var nameByUid = {};
+  sheetToObjects_('Users').forEach(function (u) { nameByUid[u.uid] = u.name; });
   rows = rows.map(function (r) {
     return {
-      id: r.id, uid: r.uid, from: formatDate_(r.from), to: formatDate_(r.to), type: r.type,
+      id: r.id, uid: r.uid, name: nameByUid[r.uid] || r.uid, from: formatDate_(r.from), to: formatDate_(r.to), type: r.type,
       duration: r.duration || 'Full Day', reason: r.reason, status: r.status, appliedOn: formatDate_(r.appliedOn)
     };
   }).sort(function (a, b) { return String(b.appliedOn).localeCompare(String(a.appliedOn)); });
@@ -815,7 +1020,11 @@ function approveLeave_(payload) {
  *  Status "Leave" (Leave Value `dayValue`, 1 for a full day / 0.5 for a
  *  half day) for uid in Attendance — updates the row in place if one
  *  already exists for that date (an approved leave supersedes whatever
- *  was there), otherwise creates it. */
+ *  was there), otherwise creates it. Sundays inside the range are
+ *  skipped entirely — Sunday is already a free paid day off (see
+ *  freeSundays_), so marking it "Leave" too would silently spend part
+ *  of the employee's limited monthly paid-leave allowance on a day that
+ *  was never going to cost them anything. */
 function markAttendanceLeaveRange_(uid, from, to, dayValue) {
   var sheet = getSheet_('Attendance');
   var data = sheet.getDataRange().getValues();
@@ -828,6 +1037,7 @@ function markAttendanceLeaveRange_(uid, from, to, dayValue) {
   var cursor = new Date(from + 'T00:00:00');
   var end = new Date(to + 'T00:00:00');
   while (cursor <= end) {
+    if (cursor.getDay() === 0) { cursor.setDate(cursor.getDate() + 1); continue; }
     var iso = Utilities.formatDate(cursor, Session.getScriptTimeZone(), 'yyyy-MM-dd');
     var found = false;
     for (var r = 1; r < data.length; r++) {
@@ -843,6 +1053,83 @@ function markAttendanceLeaveRange_(uid, from, to, dayValue) {
     }
     cursor.setDate(cursor.getDate() + 1);
   }
+}
+
+/** Admin-only: permanently removes a leave request from LeaveRequests —
+ *  for undoing an accidental approval/rejection, not just hiding it. If
+ *  the request had been Approved, this also undoes its effect on
+ *  Attendance (see unmarkAttendanceLeaveRange_) so a deleted request
+ *  never leaves a stale "Leave" day still eating into the employee's
+ *  paid-leave allowance or Present-Days count. */
+function deleteLeaveRequest_(payload) {
+  if (!payload.id) return fail_('Leave request ID is required.');
+  var sheet = getSheet_('LeaveRequests');
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(function (h) { return String(h).trim(); });
+  var idCol = headers.indexOf('ID');
+  if (idCol === -1) return fail_('LeaveRequests has no "ID" column.');
+
+  var rowIndex = -1, reqRow = null;
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][idCol]) === String(payload.id)) {
+      rowIndex = r;
+      reqRow = {};
+      headers.forEach(function (h, c) { reqRow[toCamel_(h)] = data[r][c]; });
+      break;
+    }
+  }
+  if (rowIndex === -1) return fail_('Leave request not found.');
+
+  if (reqRow.status === 'Approved') {
+    unmarkAttendanceLeaveRange_(reqRow.uid, formatDate_(reqRow.from), formatDate_(reqRow.to));
+  }
+
+  sheet.deleteRow(rowIndex + 1);
+  return ok_();
+}
+
+/** The inverse of markAttendanceLeaveRange_ — used when an accidentally
+ *  approved leave request gets deleted. Sundays are skipped (they were
+ *  never marked "Leave" in the first place — see markAttendanceLeaveRange_).
+ *  A date whose Attendance row is still "Leave" reverts to "Present" if
+ *  it has a Login Time (the employee also logged in that day) or gets
+ *  deleted outright if the row only ever existed because this approval
+ *  created it. A date that's no longer "Leave" (something else changed
+ *  it since — e.g. a different, still-valid leave request also covers
+ *  it) is left completely alone. */
+function unmarkAttendanceLeaveRange_(uid, from, to) {
+  var sheet = getSheet_('Attendance');
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(function (h) { return String(h).trim(); });
+  var col = {
+    uid: headers.indexOf('UID'), date: headers.indexOf('Date'), status: headers.indexOf('Status'),
+    loginTime: headers.indexOf('Login Time'), leaveValue: headers.indexOf('Leave Value')
+  };
+
+  var cursor = new Date(from + 'T00:00:00');
+  var end = new Date(to + 'T00:00:00');
+  var rowsToDelete = [];
+  while (cursor <= end) {
+    if (cursor.getDay() === 0) { cursor.setDate(cursor.getDate() + 1); continue; }
+    var iso = Utilities.formatDate(cursor, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][col.uid]) === String(uid) && formatDate_(data[r][col.date]) === iso) {
+        if (data[r][col.status] === 'Leave') {
+          if (data[r][col.loginTime]) {
+            sheet.getRange(r + 1, col.status + 1).setValue('Present');
+            if (col.leaveValue !== -1) sheet.getRange(r + 1, col.leaveValue + 1).setValue('');
+          } else {
+            rowsToDelete.push(r + 1);
+          }
+        }
+        break;
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  // Highest row number first, so deleting one doesn't shift the sheet
+  // positions of the others still queued up.
+  rowsToDelete.sort(function (a, b) { return b - a; }).forEach(function (rowNum) { sheet.deleteRow(rowNum); });
 }
 
 
@@ -940,21 +1227,48 @@ function todaysTaskFor_(uid) {
 
 /* ============================== HOLIDAYS ================================
  * The employee-vs-admin difference (current month only vs. all 12 months)
- * is applied client-side in assets/js/pages/holidays.js — both roles share
- * this one endpoint, which always returns the full year.
+ * is applied client-side in assets/js/pages/attendance.js (the combined
+ * Attendance + Holidays calendar) — both roles share this one endpoint,
+ * which always returns the full year.
  * ====================================================================== */
 
 function getHolidays_() {
   var rows = sheetToObjects_('Holidays').map(function (h) {
-    return { date: formatDate_(h.date), name: h.name, type: h.type };
+    return { id: h.id, date: formatDate_(h.date), name: h.name, type: h.type };
   });
   return ok_({ holidays: rows });
 }
 
 function addHoliday_(payload) {
   if (!payload.date || !payload.name) return fail_('Date and Name are required.');
-  appendRow_('Holidays', { date: payload.date, name: payload.name, type: payload.type || 'Festival' });
+  appendRow_('Holidays', { id: Utilities.getUuid(), date: payload.date, name: payload.name, type: payload.type || 'Festival' });
   return ok_();
+}
+
+/** Admin-only: payload = { id, date, name, type }. */
+function updateHoliday_(payload) {
+  if (!payload.id) return fail_('Holiday ID is required.');
+  if (!payload.date || !payload.name) return fail_('Date and Name are required.');
+  updateRowById_('Holidays', payload.id, { date: payload.date, name: payload.name, type: payload.type || 'Festival' });
+  return ok_();
+}
+
+/** Admin-only: permanently removes a holiday. */
+function deleteHoliday_(payload) {
+  if (!payload.id) return fail_('Holiday ID is required.');
+  var sheet = getSheet_('Holidays');
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(function (h) { return String(h).trim(); });
+  var idCol = headers.indexOf('ID');
+  if (idCol === -1) return fail_('Holidays has no "ID" column.');
+
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][idCol]) === String(payload.id)) {
+      sheet.deleteRow(r + 1);
+      return ok_();
+    }
+  }
+  return fail_('Holiday not found.');
 }
 
 
@@ -987,15 +1301,14 @@ function changePassword_(session, payload) {
 
 /* =============================== SETTINGS =================================
  * Sheet "Settings" columns: Key | Value — a simple key/value store.
- * Keys used today: "Company Name", "Working Days Per Month".
+ * Keys used today: "Company Name".
  * ====================================================================== */
 
 function getSettings_() {
   var map = {};
   sheetToObjects_('Settings').forEach(function (r) { map[r.key] = r.value; });
   return ok_({
-    companyName: map['Company Name'] || 'Aurien Media',
-    workingDaysPerMonth: Number(map['Working Days Per Month']) || 26
+    companyName: map['Company Name'] || 'Aurien Media'
   });
 }
 
@@ -1004,15 +1317,7 @@ function saveSettings_(payload) {
   if (payload.companyName !== undefined) {
     upsertRow_('Settings', 'Key', 'Company Name', { key: 'Company Name', value: payload.companyName });
   }
-  if (payload.workingDaysPerMonth !== undefined) {
-    upsertRow_('Settings', 'Key', 'Working Days Per Month', { key: 'Working Days Per Month', value: Number(payload.workingDaysPerMonth) || 26 });
-  }
   return ok_();
-}
-
-function getWorkingDaysPerMonth_() {
-  var row = sheetToObjects_('Settings').find(function (r) { return r.key === 'Working Days Per Month'; });
-  return (row && Number(row.value)) || 26;
 }
 
 
