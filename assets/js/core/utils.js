@@ -30,7 +30,7 @@ const Utils = (() => {
   function avatarInner(user) {
     const fallback = initials(user?.name);
     if (user?.photoUrl) {
-      return `<img class="avatar-img" src="${escapeHtml(user.photoUrl)}" alt="${escapeHtml(user.name || "")}" onerror="this.outerHTML='${fallback}'" />`;
+      return `<img class="avatar-img" src="${escapeHtml(user.photoUrl)}" alt="${escapeHtml(user.name || "")}" onerror="this.outerHTML='${escapeHtml(fallback)}'" />`;
     }
     return fallback;
   }
