@@ -5,7 +5,7 @@
  * Apps Script backend is cross-origin and left completely untouched —
  * this never caches or intercepts live data.
  */
-const CACHE_NAME = "aurien-ems-shell-v1";
+const CACHE_NAME = "aurien-ems-shell-v2";
 const SHELL_ASSETS = [
   "./",
   "./index.html",
@@ -42,15 +42,18 @@ self.addEventListener("fetch", event => {
   // Script API) and non-GET requests pass straight through to the network.
   if (req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
 
+  // Network-first: always prefer a live copy of app code when the device
+  // is online, and only fall back to the cached shell when the network
+  // fetch actually fails (offline). A cache-first strategy here would
+  // mean a stale cached copy of a file like api.js — e.g. one pointing
+  // at an old Apps Script deployment URL — keeps being served forever
+  // after every redeploy, since nothing ever forces a re-fetch.
   event.respondWith(
-    caches.match(req).then(cached => {
-      const network = fetch(req)
-        .then(res => {
-          if (res.ok) caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(req)
+      .then(res => {
+        if (res.ok) caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
+        return res;
+      })
+      .catch(() => caches.match(req))
   );
 });
