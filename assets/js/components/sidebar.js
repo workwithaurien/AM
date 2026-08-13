@@ -29,6 +29,10 @@ const Sidebar = (() => {
     </svg>`,
     profile: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="10" cy="7" r="3.2" /><path d="M3.5 17c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
+    </svg>`,
+    settings: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="10" cy="10" r="2.6" />
+      <path d="M10 3.5v1.6M10 14.9v1.6M16.5 10h-1.6M5.1 10H3.5M14.6 5.4l-1.1 1.1M6.5 13.5l-1.1 1.1M14.6 14.6l-1.1-1.1M6.5 6.5 5.4 5.4" />
     </svg>`
   };
 
@@ -39,7 +43,8 @@ const Sidebar = (() => {
     { id: "drive",         label: "Drive",         roles: ["employee", "admin"] },
     { id: "attendance",    label: "Attendance",    roles: ["employee", "admin"] },
     { id: "employees",     label: "Employees",     roles: ["admin"] },
-    { id: "profile",       label: "Profile",       roles: ["employee", "admin"] }
+    { id: "profile",       label: "Profile",       roles: ["employee", "admin"] },
+    { id: "settings",      label: "Settings",      roles: ["admin"] }
   ];
 
   function render() {
