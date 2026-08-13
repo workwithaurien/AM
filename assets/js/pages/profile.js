@@ -58,7 +58,12 @@ const PageProfile = (() => {
             <div class="grid grid-3">
               ${Card.stat({ label: "Warning Letters", value: String(warningCount) })}
               ${Card.stat({ label: "Appreciation Letters", value: String(appreciationCount) })}
-              ${Card.stat({ label: "Employment Documents", value: "0" })}
+              ${Card.stat({
+                label: "Employment Documents",
+                value: user.documentsFolderUrl
+                  ? `<a href="${Utils.escapeHtml(user.documentsFolderUrl)}" target="_blank" rel="noopener">Open</a>`
+                  : "Not linked"
+              })}
             </div>
             <div class="section-head"><h2>Leave History</h2></div>
             ${DataTable.render(
