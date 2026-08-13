@@ -379,6 +379,7 @@ const PageEmployees = (() => {
     let holidays = [];
     let holidaysLoaded = false;
     const cache = {}; // uid -> records, so browsing months doesn't re-fetch
+    const paidLeaveCache = {}; // uid -> { eligible } — only the eligibility flag is used (it doesn't vary by month; used/remaining do, so those are recomputed per viewed month below instead of trusting the backend's current-month-only figures)
 
     const bodyHtml = `
       <div class="field"><label>Employee</label>
@@ -392,20 +393,34 @@ const PageEmployees = (() => {
 
     const renderCalendar = uid => {
       const records = cache[uid] || [];
+      const paidLeave = paidLeaveCache[uid] || { eligible: false };
       const inMonth = iso => {
         const d = new Date(iso + "T00:00:00");
         return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
       };
       const present = records.filter(r => r.status === "Present" && inMonth(r.date)).length;
       const absent = records.filter(r => r.status === "Absent" && inMonth(r.date)).length;
-      const leave = records.filter(r => r.status === "Leave" && inMonth(r.date)).length;
+      // Sums Leave Value (0.5 for a half-day request) rather than just
+      // counting rows, so a half-day leave shows as 0.5, not 1. The
+      // 1.5-day/month paid allowance is applied to whichever month is in
+      // view here (not just "this real month" like the Salary page),
+      // computed client-side since it only needs this same total.
+      const totalLeaveDays = records.filter(r => r.status === "Leave" && inMonth(r.date))
+        .reduce((sum, r) => sum + (Number(r.leaveValue) || 1), 0);
+      const paidUsed = paidLeave.eligible ? Math.min(totalLeaveDays, 1.5) : 0;
+      const unpaid = paidLeave.eligible ? Math.max(0, totalLeaveDays - 1.5) : totalLeaveDays;
+      const leaveSub = !paidLeave.eligible
+        ? "Not eligible for paid leave (Full Time only)"
+        : unpaid > 0
+          ? `${paidUsed} paid · ${unpaid} unpaid (beyond 1.5/month)`
+          : `${paidUsed} of 1.5 paid this month`;
 
       const wrap = overlay.querySelector("#attResult");
       wrap.innerHTML = `
         <div class="grid grid-3">
           ${Card.stat({ label: "Total Present", value: present })}
           ${Card.stat({ label: "Total Absent", value: absent })}
-          ${Card.stat({ label: "Total Paid Leaves", value: leave })}
+          ${Card.stat({ label: "Total Leaves", value: totalLeaveDays, sub: leaveSub })}
         </div>
         <div class="toolbar" style="margin:16px 0 0;justify-content:center">
           <div class="month-nav">
@@ -435,6 +450,7 @@ const PageEmployees = (() => {
         const res = await Api.call("getAttendanceCalendar", { uid });
         if (!res.ok) { wrap.innerHTML = `<div class="empty-state">${res.error}</div>`; return; }
         cache[uid] = res.records;
+        paidLeaveCache[uid] = res.paidLeave || { eligible: false };
       }
       if (!holidaysLoaded) {
         const holRes = await Api.call("getHolidays");
