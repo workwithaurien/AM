@@ -24,7 +24,17 @@ const Api = (() => {
         body: JSON.stringify({ action, token: Auth.getToken(), ...payload })
       });
       if (!res.ok) return { ok: false, error: "Network error (" + res.status + ")" };
-      return await res.json();
+      const data = await res.json();
+      // Apps Script sessions cap out at 6 hours (CacheService's hard
+      // limit) — when that expires server-side, sessionStorage still
+      // thinks the browser is logged in, so every page would otherwise
+      // just sit on raw "Not authenticated" error text forever with no
+      // way back. Force a clean re-login instead.
+      if (!data.ok && data.error === "Not authenticated. Please log in again." && action !== "login") {
+        sessionStorage.setItem("ems_login_notice", "Your session expired — please log in again.");
+        Auth.logout();
+      }
+      return data;
     } catch (err) {
       return { ok: false, error: err.message || "Request failed" };
     } finally {
