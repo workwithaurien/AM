@@ -73,14 +73,18 @@ const PageEmployees = (() => {
   }
 
   async function openDrawer(emp) {
-    // Fetch this employee's real reports + salary before opening, so every
-    // drawer tab can render synchronously off already-loaded data.
-    const [reportsRes, salaryRes] = await Promise.all([
+    // Fetch this employee's real reports + salary + attendance history
+    // before opening, so every drawer tab can render synchronously off
+    // already-loaded data.
+    const [reportsRes, salaryRes, attRes] = await Promise.all([
       Api.call("getWorkReports", { employeeName: emp.name }),
-      Api.call("getSalary", { uid: emp.uid })
+      Api.call("getSalary", { uid: emp.uid }),
+      Api.call("getAttendanceCalendar", { uid: emp.uid })
     ]);
     const empReports = reportsRes.ok ? reportsRes.reports : [];
     const empSalary = salaryRes.ok ? salaryRes.salary : null;
+    // Newest first, same convention as Work Reports.
+    const empAttendance = (attRes.ok ? attRes.records : []).slice().sort((a, b) => b.date.localeCompare(a.date));
 
     const footerHtml = `<button class="btn ${emp.status === "Disabled" ? "" : "danger"} sm" id="statusBtn">${emp.status === "Disabled" ? "Enable Employee" : "Disable Employee"}</button>`;
     const drawer = Drawer.open({
@@ -97,8 +101,14 @@ const PageEmployees = (() => {
             <div><div class="k">Status</div><div class="v">${Badge.render(emp.status, "success")}</div></div>
           </div>` },
         { id: "attendance", label: "Attendance", render: () => DataTable.render(
-            [{ key: "date", label: "Date" }, { key: "status", label: "Status" }],
-            [{ date: "Today", status: Badge.render(emp.attendanceToday, emp.attendanceToday === "Present" ? "success" : "warning") }]
+            [{ key: "date", label: "Date" }, { key: "status", label: "Status" }, { key: "loginTime", label: "Login" }, { key: "logoutTime", label: "Logout" }],
+            empAttendance.map(r => ({
+              date: Utils.formatDate(r.date),
+              status: Badge.render(r.status, r.status === "Present" ? "success" : r.status === "Absent" ? "danger" : r.status === "Leave" ? "warning" : "neutral"),
+              loginTime: r.loginTime || "—",
+              logoutTime: r.logoutTime || "—"
+            })),
+            { emptyText: "No attendance records yet." }
           ) },
         { id: "salary", label: "Salary", render: () => empSalary ? `
             <div class="grid grid-2">
