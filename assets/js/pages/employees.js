@@ -474,6 +474,7 @@ const PageEmployees = (() => {
     let holidaysLoaded = false;
     const cache = {}; // uid -> records, so browsing months doesn't re-fetch
     const paidLeaveCache = {}; // uid -> { eligible } — only the eligibility flag is used (it doesn't vary by month; used/remaining do, so those are recomputed per viewed month below instead of trusting the backend's current-month-only figures)
+    const overtimeCache = {}; // uid -> Approved overtime rows [{date, value}] — summed per viewed month below, same idea as paidLeaveCache
 
     const bodyHtml = `
       <div class="field"><label>Employee</label>
@@ -488,6 +489,7 @@ const PageEmployees = (() => {
     const renderCalendar = uid => {
       const records = cache[uid] || [];
       const paidLeave = paidLeaveCache[uid] || { eligible: false };
+      const overtimeRows = overtimeCache[uid] || [];
       const inMonth = iso => {
         const d = new Date(iso + "T00:00:00");
         return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
@@ -505,7 +507,10 @@ const PageEmployees = (() => {
       // explicit Present-status days (a Full Day leave credits nothing
       // extra, since 1 - 1 = 0).
       const halfDayPresentCredit = leaveRows.reduce((sum, r) => sum + (1 - (Number(r.leaveValue) || 1)), 0);
-      const present = monthRows.filter(r => r.status === "Present").length + halfDayPresentCredit;
+      // Approved overtime never writes an Attendance row, so it's summed
+      // separately for whichever month is in view — same as leave above.
+      const overtimeDays = overtimeRows.filter(o => inMonth(o.date)).reduce((sum, o) => sum + (Number(o.value) || 0), 0);
+      const present = monthRows.filter(r => r.status === "Present").length + halfDayPresentCredit + overtimeDays;
       const absent = monthRows.filter(r => r.status === "Absent").length;
       const paidUsed = paidLeave.eligible ? Math.min(totalLeaveDays, 1.5) : 0;
       const unpaid = paidLeave.eligible ? Math.max(0, totalLeaveDays - 1.5) : totalLeaveDays;
@@ -518,7 +523,7 @@ const PageEmployees = (() => {
       const wrap = overlay.querySelector("#attResult");
       wrap.innerHTML = `
         <div class="grid grid-3">
-          ${Card.stat({ label: "Total Present", value: present })}
+          ${Card.stat({ label: "Total Present", value: present, sub: overtimeDays > 0 ? `${overtimeDays} day${overtimeDays === 1 ? "" : "s"} extra (overtime)` : "" })}
           ${Card.stat({ label: "Total Absent", value: absent })}
           ${Card.stat({ label: "Total Leaves", value: totalLeaveDays, sub: leaveSub })}
         </div>
@@ -551,6 +556,7 @@ const PageEmployees = (() => {
         if (!res.ok) { wrap.innerHTML = `<div class="empty-state">${res.error}</div>`; return; }
         cache[uid] = res.records;
         paidLeaveCache[uid] = res.paidLeave || { eligible: false };
+        overtimeCache[uid] = res.overtime || [];
       }
       if (!holidaysLoaded) {
         const holRes = await Api.call("getHolidays");

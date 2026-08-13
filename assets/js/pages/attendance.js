@@ -20,9 +20,10 @@ const PageAttendance = (() => {
     if (!attRes.ok) { mount.innerHTML = `<div class="empty-state">${attRes.error}</div>`; return; }
     const holidays = holRes.holidays;
     const attendance = attRes.records;
+    const overtime = attRes.overtime || [];
     const paidLeave = attRes.paidLeave || { eligible: false, allowance: 0, taken: 0, used: 0, remaining: 0, cashoutDays: 0 };
 
-    mount.innerHTML = user.role === "admin" ? adminView(holidays, attendance) : employeeView(holidays, attendance, paidLeave);
+    mount.innerHTML = user.role === "admin" ? adminView(holidays, attendance, overtime) : employeeView(holidays, attendance, overtime, paidLeave);
 
     if (user.role === "admin") {
       document.getElementById("addHolidayBtn").addEventListener("click", () => openHolidayModal(null));
@@ -60,15 +61,35 @@ const PageAttendance = (() => {
     return explicit + halfDayCredit;
   }
 
-  function countsFor(holidays, attendance, year, monthIndex) {
+  /** Sum of Approved overtime Value for dates within one calendar month —
+   *  same shape as the backend's approvedOvertimeDaysInMonth_. Overtime
+   *  never writes an Attendance row (see getAttendanceCalendar_), so it
+   *  has to be added on top of presentCount_ separately, same as it's
+   *  added on top of Salary's presentDays. */
+  function overtimeDaysInMonth_(overtime, year, monthIndex) {
+    return overtime
+      .filter(o => {
+        const d = new Date(o.date + "T00:00:00");
+        return d.getFullYear() === year && d.getMonth() === monthIndex;
+      })
+      .reduce((sum, o) => sum + (Number(o.value) || 0), 0);
+  }
+
+  function overtimeSub_(days) {
+    return days > 0 ? `${days} day${days === 1 ? "" : "s"} extra (overtime)` : "";
+  }
+
+  function countsFor(holidays, attendance, overtime, year, monthIndex) {
     const inMonth = iso => {
       const d = new Date(iso + "T00:00:00");
       return d.getFullYear() === year && d.getMonth() === monthIndex;
     };
+    const overtimeDays = overtimeDaysInMonth_(overtime, year, monthIndex);
     return {
-      present: presentCount_(attendance.filter(a => inMonth(a.date))),
+      present: presentCount_(attendance.filter(a => inMonth(a.date))) + overtimeDays,
       absent: attendance.filter(a => a.status === "Absent" && inMonth(a.date)).length,
-      holidays: holidays.filter(h => inMonth(h.date)).length
+      holidays: holidays.filter(h => inMonth(h.date)).length,
+      overtimeDays
     };
   }
 
@@ -82,15 +103,15 @@ const PageAttendance = (() => {
       </div>`;
   }
 
-  function employeeView(holidays, attendance, paidLeave) {
-    const counts = countsFor(holidays, attendance, viewYear, viewMonth);
+  function employeeView(holidays, attendance, overtime, paidLeave) {
+    const counts = countsFor(holidays, attendance, overtime, viewYear, viewMonth);
     const monthHolidays = holidays.filter(h => {
       const d = new Date(h.date + "T00:00:00");
       return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
     });
     return `
       <div class="grid grid-4">
-        ${Card.stat({ label: "Present Days", value: counts.present })}
+        ${Card.stat({ label: "Present Days", value: counts.present, sub: overtimeSub_(counts.overtimeDays) })}
         ${Card.stat({ label: "Absent Days", value: counts.absent })}
         ${Card.stat({ label: "Holidays", value: counts.holidays })}
         ${paidLeaveCardHtml(paidLeave)}
@@ -140,12 +161,16 @@ const PageAttendance = (() => {
     });
   }
 
-  function adminView(holidays, attendance) {
+  function adminView(holidays, attendance, overtime) {
     const year = new Date().getFullYear();
+    const yearOvertimeDays = overtime
+      .filter(o => o.date.startsWith(String(year)))
+      .reduce((sum, o) => sum + (Number(o.value) || 0), 0);
     const yearCounts = {
-      present: presentCount_(attendance.filter(a => a.date.startsWith(String(year)))),
+      present: presentCount_(attendance.filter(a => a.date.startsWith(String(year)))) + yearOvertimeDays,
       absent: attendance.filter(a => a.status === "Absent" && a.date.startsWith(String(year))).length,
-      holidays: holidays.filter(h => h.date.startsWith(String(year))).length
+      holidays: holidays.filter(h => h.date.startsWith(String(year))).length,
+      overtimeDays: yearOvertimeDays
     };
     const groups = Calendar.MONTH_NAMES.map((name, idx) => ({
       name, idx,
@@ -157,7 +182,7 @@ const PageAttendance = (() => {
         <button class="btn" id="addHolidayBtn">+ Add Holiday</button>
       </div>
       <div class="grid grid-3" style="margin-bottom:10px">
-        ${Card.stat({ label: "Present Days (Year)", value: yearCounts.present })}
+        ${Card.stat({ label: "Present Days (Year)", value: yearCounts.present, sub: overtimeSub_(yearCounts.overtimeDays) })}
         ${Card.stat({ label: "Absent Days (Year)", value: yearCounts.absent })}
         ${Card.stat({ label: "Holidays (Year)", value: yearCounts.holidays })}
       </div>
