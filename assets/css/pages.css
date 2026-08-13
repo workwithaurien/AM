@@ -17,6 +17,8 @@ body.login-body{
   padding:8px 10px;border-radius:var(--r-sm);margin-bottom:12px;display:none;
 }
 .login-error.show{display:block;}
+.remember-me{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:var(--fs-sm);color:var(--ink-soft);cursor:pointer;}
+.remember-me input{width:15px;height:15px;accent-color:var(--cta);cursor:pointer;}
 .password-field{position:relative;}
 .password-field .input{padding-right:38px;}
 .password-toggle{
@@ -113,9 +115,10 @@ body.login-body{
 .legend-dot.leave{background:var(--warning);}
 .legend-dot.holiday{background:var(--accent);}
 .holiday-list{display:flex;flex-direction:column;gap:8px;margin-top:16px;}
-.holiday-row{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-sm);}
+.holiday-row{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-sm);flex-wrap:wrap;gap:8px;}
 .holiday-row .h-date{color:var(--muted);font-size:var(--fs-xs);width:110px;flex:none;}
 .holiday-row .h-name{flex:1;font-weight:600;}
+.h-actions{display:flex;gap:6px;flex:none;margin-left:10px;}
 .year-groups{display:flex;flex-direction:column;gap:22px;margin-top:10px;}
 .year-group h3{font-size:var(--fs-sm);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;}
 
