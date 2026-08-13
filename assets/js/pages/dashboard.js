@@ -88,6 +88,7 @@ const PageDashboard = (() => {
         ${isAdmin ? "" : `<button class="btn" id="qaReport">Submit Work Report</button>`}
         <button class="btn secondary" id="qaLeave">Apply Leave</button>
         <button class="btn secondary" id="qaAdvance">Request Advance Salary</button>
+        ${isAdmin ? "" : `<button class="btn secondary" id="qaOvertime">Log Overtime</button>`}
       </div>
     `;
 
@@ -96,6 +97,7 @@ const PageDashboard = (() => {
     document.getElementById("qaReport")?.addEventListener("click", () => (window.location.hash = "#work-reports"));
     document.getElementById("qaLeave").addEventListener("click", openApplyLeaveModal);
     document.getElementById("qaAdvance").addEventListener("click", openRequestAdvanceModal);
+    document.getElementById("qaOvertime")?.addEventListener("click", openLogOvertimeModal);
   }
 
   function openApplyLeaveModal() {
@@ -182,6 +184,37 @@ const PageDashboard = (() => {
         Modal.close();
       } else {
         Toast.show(res.error || "Could not submit advance request", "error");
+      }
+    });
+  }
+
+  /** Overtime is reported in days (0.5/1/1.5/2...), same scale as a
+   *  half/full-day Leave — once an admin approves it, computeSalary_
+   *  adds that value straight into that month's Present Days. */
+  function openLogOvertimeModal() {
+    const bodyHtml = `
+      <form id="otForm">
+        <div class="grid grid-2">
+          <div class="field"><label>Date</label><input class="input" type="date" name="date" value="${Utils.todayIso()}" required /></div>
+          <div class="field"><label>Overtime Days</label><input class="input" type="number" name="value" step="0.5" min="0.5" placeholder="e.g. 0.5, 1, 1.5, 2" required /></div>
+        </div>
+        <div class="field"><label>Reason</label>
+          <textarea class="input" name="reason" rows="2" placeholder="What did the extra time go toward?"></textarea></div>
+      </form>`;
+    const footerHtml = `
+      <button class="btn secondary" type="button" id="otCancel">Cancel</button>
+      <button class="btn" type="submit" form="otForm">Submit</button>`;
+    const overlay = Modal.open({ title: "Log Overtime", bodyHtml, footerHtml });
+    overlay.querySelector("#otCancel").addEventListener("click", Modal.close);
+    overlay.querySelector("#otForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const res = await Api.call("requestOvertime", { date: fd.get("date"), value: fd.get("value"), reason: fd.get("reason") });
+      if (res.ok) {
+        Toast.show("Overtime submitted for approval", "success");
+        Modal.close();
+      } else {
+        Toast.show(res.error || "Could not submit overtime", "error");
       }
     });
   }

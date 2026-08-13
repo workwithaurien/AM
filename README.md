@@ -23,6 +23,7 @@ All dummy/test data now lives **in the Google Sheet**, seeded by a setup script 
 | Profile page | Full — shows Designation, Department, Employment Type, and Monthly Salary (moved here from the Salary page) alongside attendance/leave history |
 | Apply Leave / Approve Leave | Full — Dashboard "Apply Leave" submits a request; admin approves/rejects per-employee from the Employees drawer, or all-employees-at-once from the Employees page's "Approve Leaves" button. Every leave request also has a "Delete" button (admin-only) to permanently undo an accidental approval/rejection — if it had been Approved, this also reverts the Attendance days it marked "Leave" back to Present (or removes them if nothing else happened that day), so it never leaves a stale day still counted against the employee's paid-leave allowance |
 | Request/Approve Advance Salary | Full — Dashboard "Request Advance Salary" submits a request; admin approves/rejects per-employee from the Employees drawer, or all-employees-at-once from the Employees page's "Approve Advances" button (mirrors "Approve Leaves"). Every request also has a "Delete" button (admin-only) — if it had been Approved, deleting it reverses the amount from the employee's Advance Taken |
+| Log/Approve Overtime | Full — Dashboard "Log Overtime" lets an employee report extra days worked (0.5/1/1.5/2...) for a specific date; admin approves/rejects per-employee from the Employees drawer, or all-employees-at-once from the Employees page's "Approve Overtime" button. Approved overtime for the current month is added straight into that month's Present Days (same weight as a paid leave day) — shown as a subtext on the Present Days card on both the employee's Salary page and the admin drawer's Salary tab. Every request also has a "Delete" button (admin-only); unlike Leave, Overtime never touches Attendance, so deleting or rejecting one just drops it from next calculation, no reversal needed |
 | Warning/Performance Note/Appreciation letters | Full — issued from the Employees drawer; counts show on the employee's Profile page |
 | Change Password | Full — verifies the current password and updates the sheet |
 | Disable/Enable Employee | Full — a Disabled employee can't log in until re-enabled |
@@ -49,7 +50,7 @@ Any blank spreadsheet. You don't need to create tabs by hand — the setup scrip
 
 1. In the Apps Script editor's toolbar, pick **`setupEMS`** from the function dropdown (next to Run).
 2. Click **Run**. The first time, it'll ask you to authorize access to the Sheet — allow it.
-3. Check the Sheet — you should now see tabs `Users`, `WorkReports`, `Attendance`, `SalaryBase`, `SalaryHistory`, `Holidays`, `Announcements`, `DriveLinks`, `LeaveRequests`, `AdvanceRequests`, `Letters`, `Settings`, `LeaveCashout`, `DailyTasks`, each with headers and (where useful) a couple of sample rows.
+3. Check the Sheet — you should now see tabs `Users`, `WorkReports`, `Attendance`, `SalaryBase`, `SalaryHistory`, `Holidays`, `Announcements`, `DriveLinks`, `LeaveRequests`, `AdvanceRequests`, `OvertimeRequests`, `Letters`, `Settings`, `LeaveCashout`, `DailyTasks`, each with headers and (where useful) a couple of sample rows.
 4. Safe to re-run any time — it only fills a tab that's still empty, so it won't duplicate rows or touch data you've since added by hand.
 
 **Already had this deployed before?** Don't re-run `setupEMS` — instead pick **`upgradeEMS`** from the function dropdown and run that once. It adds everything newer features need (`Designation`/`Department`/`Employment Type`/`Status` columns on `Users`, `Login Time`/`Logout Time` on `Attendance`, the new sheets above, and the WorkReports column rename) to your existing Sheet without touching any data you already have. Also safe to re-run any time.
@@ -107,6 +108,7 @@ This repo (`workwithaurien/AM`) is set up to deploy as-is — no build step, it'
 **DriveLinks** — Title | Icon | URL *(Icon is any short text, e.g. "DT" — no emoji required; blank defaults to the first two letters of the Title)*
 **LeaveRequests** — ID | UID | From | To | Type | Duration *(Full Day / Half Day — Half Day requires From = To)* | Reason | Status *(Pending / Approved / Rejected)* | Applied On
 **AdvanceRequests** — ID | UID | Amount | Reason | Status *(Pending / Approved / Rejected)* | Applied On
+**OvertimeRequests** — ID | UID | Date | Value *(extra days, e.g. 0.5 / 1 / 1.5 / 2)* | Reason | Status *(Pending / Approved / Rejected)* | Applied On
 **Letters** — ID | UID | Type *(Warning / Note / Appreciation)* | Message | Date | Issued By
 **Settings** — Key | Value *(rows: "Company Name")*
 **LeaveCashout** — UID | Owed Days | Last Closed Month *(internal bookkeeping for the paid-leave cash-out rule — never edit by hand)*

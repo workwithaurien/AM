@@ -81,6 +81,7 @@ const PageSalary = (() => {
     // were NOT paid, not just silently missing from the total.
     if (s.paidLeaveUnpaid > 0) parts.push(`${s.paidLeaveUnpaid} leave day${s.paidLeaveUnpaid === 1 ? "" : "s"} beyond the allowance — unpaid`);
     if (s.paidLeaveCashoutDays > 0) parts.push(`${s.paidLeaveCashoutDays}d unused leave cashed out`);
+    if (s.overtimeDays > 0) parts.push(`${s.overtimeDays} day${s.overtimeDays === 1 ? "" : "s"} extra (overtime)`);
     return parts.join(" · ");
   }
 

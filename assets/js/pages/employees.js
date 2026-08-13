@@ -22,6 +22,7 @@ const PageEmployees = (() => {
         <button class="btn secondary" id="baAssignTask">Assign Task</button>
         <button class="btn secondary" id="baApproveLeaves">Approve Leaves</button>
         <button class="btn secondary" id="baApproveAdvances">Approve Advances</button>
+        <button class="btn secondary" id="baApproveOvertime">Approve Overtime</button>
         <button class="btn secondary" id="baAttendance">Attendance</button>
       </div>
     `;
@@ -31,6 +32,7 @@ const PageEmployees = (() => {
     document.getElementById("baAssignTask").addEventListener("click", () => openAssignDailyTaskModal());
     document.getElementById("baApproveLeaves").addEventListener("click", openApproveLeavesModal);
     document.getElementById("baApproveAdvances").addEventListener("click", openApproveAdvancesModal);
+    document.getElementById("baApproveOvertime").addEventListener("click", openApproveOvertimeModal);
     document.getElementById("baAttendance").addEventListener("click", openAttendanceViewModal);
 
     renderGrid("");
@@ -114,13 +116,14 @@ const PageEmployees = (() => {
           ) },
         { id: "salary", label: "Salary", render: () => empSalary ? `
             <div class="grid grid-2">
+              ${Card.stat({ label: "Present Days", value: `${empSalary.presentDays}/${empSalary.totalWorkingDays}`, sub: presentDaysSub(empSalary) })}
               ${Card.stat({ label: "Monthly Salary", value: Utils.currency(empSalary.monthlySalary) })}
+            </div>
+            <div class="grid grid-2" style="margin-top:10px">
               ${Card.stat({ label: "Advance Taken", value: Utils.currency(empSalary.advanceTaken) })}
+              ${Card.stat({ label: "Net Payable", value: Utils.currency(Math.round(empSalary.monthlySalary / empSalary.totalWorkingDays * empSalary.presentDays) - empSalary.advanceTaken) })}
             </div>
-            <div style="margin-top:10px">
-              ${Card.stat({ label: "Net Payable", value: Utils.currency(empSalary.monthlySalary - empSalary.advanceTaken) })}
-            </div>
-            <div class="card-sub" style="margin-top:10px">Present days &amp; real-time earnings use the same calculator as the employee's own Salary page.</div>
+            <div class="card-sub" style="margin-top:10px">Real-time earnings use the same calculator as the employee's own Salary page.</div>
           ` : `<div class="card-sub">No salary record for this employee yet — use "Update Salary" below to create one.</div>` },
         { id: "reports", label: "Work Reports", render: () => DataTable.render(
             [{ key: "date", label: "Date" }, { key: "client", label: "Client" }, { key: "type", label: "Type" }],
@@ -140,6 +143,7 @@ const PageEmployees = (() => {
         <button class="btn secondary sm" data-act="appreciation">Issue Appreciation</button>
         <button class="btn secondary sm" data-act="leave">Approve Leave${emp.pendingLeaveCount ? ` (${emp.pendingLeaveCount})` : ""}</button>
         <button class="btn secondary sm" data-act="advance">Approve Advance${emp.pendingAdvanceCount ? ` (${emp.pendingAdvanceCount})` : ""}</button>
+        <button class="btn secondary sm" data-act="overtime">Approve Overtime${emp.pendingOvertimeCount ? ` (${emp.pendingOvertimeCount})` : ""}</button>
         <button class="btn secondary sm" data-act="salary">Update Salary</button>
         <button class="btn secondary sm" data-act="closeSalary">Close Out Month</button>
         <button class="btn secondary sm" data-act="details">Edit Details</button>
@@ -156,6 +160,7 @@ const PageEmployees = (() => {
         if (btn.dataset.act === "resetPassword") { openResetPasswordModal(emp); return; }
         if (btn.dataset.act === "leave") { openApprovalsModal(emp, "leave"); return; }
         if (btn.dataset.act === "advance") { openApprovalsModal(emp, "advance"); return; }
+        if (btn.dataset.act === "overtime") { openApprovalsModal(emp, "overtime"); return; }
         if (LETTER_TYPES[btn.dataset.act]) { openIssueLetterModal(emp, LETTER_TYPES[btn.dataset.act]); return; }
       });
     });
@@ -176,7 +181,51 @@ const PageEmployees = (() => {
     });
   }
 
+  /** Same breakdown as PageSalary's own presentDaysSub — kept as a
+   *  separate copy since each page module is self-contained, but the
+   *  wording must stay identical to what the employee sees on their
+   *  own Salary page. */
+  function presentDaysSub(s) {
+    const parts = [];
+    if (s.sundayBonusDays > 0) parts.push(`${s.sundayBonusDays} Sunday${s.sundayBonusDays === 1 ? "" : "s"} counted as present`);
+    if (s.paidLeaveUsed > 0) parts.push(`${s.paidLeaveUsed} paid leave day${s.paidLeaveUsed === 1 ? "" : "s"} used`);
+    if (s.paidLeaveUnpaid > 0) parts.push(`${s.paidLeaveUnpaid} leave day${s.paidLeaveUnpaid === 1 ? "" : "s"} beyond the allowance — unpaid`);
+    if (s.paidLeaveCashoutDays > 0) parts.push(`${s.paidLeaveCashoutDays}d unused leave cashed out`);
+    if (s.overtimeDays > 0) parts.push(`${s.overtimeDays} day${s.overtimeDays === 1 ? "" : "s"} extra (overtime)`);
+    return parts.join(" · ");
+  }
+
   const LETTER_TYPES = { warning: "Warning", note: "Note", appreciation: "Appreciation" };
+
+  /** Shared config for openApprovalsModal's three kinds — everything
+   *  that differs between Leave/Advance/Overtime approval lives here so
+   *  the modal itself stays generic. */
+  const APPROVAL_KINDS = {
+    leave: {
+      label: "Leave",
+      getAction: "getLeaves", listKey: "leaves",
+      approveAction: "approveLeave", deleteAction: "deleteLeaveRequest",
+      rowLabel: item => `<strong>${Utils.escapeHtml(item.type)}</strong> (${item.duration === "Half Day" ? "Half Day" : "Full Day"}) — ${Utils.formatDate(item.from)} to ${Utils.formatDate(item.to)}`,
+      deleteWarning: "Permanently delete this leave request? If it was approved, the days it marked as Leave will revert to Present (or be removed if nothing else happened that day). This can't be undone.",
+      noItemsLabel: "leave"
+    },
+    advance: {
+      label: "Advance Salary",
+      getAction: "getAdvanceRequests", listKey: "requests",
+      approveAction: "approveAdvance", deleteAction: "deleteAdvanceRequest",
+      rowLabel: item => `<strong>${Utils.currency(item.amount)}</strong>`,
+      deleteWarning: "Permanently delete this advance salary request? If it was approved, the amount will be removed from their Advance Taken. This can't be undone.",
+      noItemsLabel: "advance salary"
+    },
+    overtime: {
+      label: "Overtime",
+      getAction: "getOvertimeRequests", listKey: "requests",
+      approveAction: "approveOvertime", deleteAction: "deleteOvertimeRequest",
+      rowLabel: item => `<strong>${item.value} day${item.value === 1 ? "" : "s"} extra</strong> — ${Utils.formatDate(item.date)}`,
+      deleteWarning: "Permanently delete this overtime request? This can't be undone.",
+      noItemsLabel: "overtime"
+    }
+  };
 
   /** Shared by Issue Warning / Performance Note / Issue Appreciation — all
    *  three just write a row to the Letters sheet with a different Type. */
@@ -214,16 +263,14 @@ const PageEmployees = (() => {
    *  it added to Advance Taken (see deleteLeaveRequest_/
    *  deleteAdvanceRequest_ in Code.gs). */
   async function openApprovalsModal(emp, kind) {
-    const isLeave = kind === "leave";
-    const res = await Api.call(isLeave ? "getLeaves" : "getAdvanceRequests", { uid: emp.uid });
-    const items = res.ok ? (isLeave ? res.leaves : res.requests) : [];
+    const cfg = APPROVAL_KINDS[kind];
+    const res = await Api.call(cfg.getAction, { uid: emp.uid });
+    const items = res.ok ? res[cfg.listKey] : [];
 
     const rowHtml = item => `
       <div class="approval-row">
         <div>
-          <div>${isLeave
-            ? `<strong>${Utils.escapeHtml(item.type)}</strong> (${item.duration === "Half Day" ? "Half Day" : "Full Day"}) — ${Utils.formatDate(item.from)} to ${Utils.formatDate(item.to)}`
-            : `<strong>${Utils.currency(item.amount)}</strong>`}</div>
+          <div>${cfg.rowLabel(item)}</div>
           <div class="card-sub">${Utils.escapeHtml(item.reason || "No reason given")}</div>
         </div>
         <div class="approval-actions">
@@ -236,12 +283,12 @@ const PageEmployees = (() => {
 
     const bodyHtml = items.length
       ? `<div class="approval-list">${items.map(rowHtml).join("")}</div>`
-      : `<div class="card-sub">No ${isLeave ? "leave" : "advance salary"} requests from ${Utils.escapeHtml(emp.name)} yet.</div>`;
+      : `<div class="card-sub">No ${cfg.noItemsLabel} requests from ${Utils.escapeHtml(emp.name)} yet.</div>`;
 
-    const overlay = Modal.open({ title: `${isLeave ? "Leave" : "Advance Salary"} Requests — ${emp.name}`, bodyHtml });
+    const overlay = Modal.open({ title: `${cfg.label} Requests — ${emp.name}`, bodyHtml });
 
     const decide = async (id, status) => {
-      const res2 = await Api.call(isLeave ? "approveLeave" : "approveAdvance", { id, status });
+      const res2 = await Api.call(cfg.approveAction, { id, status });
       if (res2.ok) {
         Toast.show(`Request ${status.toLowerCase()}`, "success");
         openApprovalsModal(emp, kind); // reopen with the refreshed list
@@ -252,13 +299,10 @@ const PageEmployees = (() => {
     overlay.querySelectorAll("[data-approve]").forEach(btn => btn.addEventListener("click", () => decide(btn.dataset.approve, "Approved")));
     overlay.querySelectorAll("[data-reject]").forEach(btn => btn.addEventListener("click", () => decide(btn.dataset.reject, "Rejected")));
     overlay.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("click", async () => {
-      const warning = isLeave
-        ? "Permanently delete this leave request? If it was approved, the days it marked as Leave will revert to Present (or be removed if nothing else happened that day). This can't be undone."
-        : "Permanently delete this advance salary request? If it was approved, the amount will be removed from their Advance Taken. This can't be undone.";
-      if (!confirm(warning)) return;
-      const res2 = await Api.call(isLeave ? "deleteLeaveRequest" : "deleteAdvanceRequest", { id: btn.dataset.delete });
+      if (!confirm(cfg.deleteWarning)) return;
+      const res2 = await Api.call(cfg.deleteAction, { id: btn.dataset.delete });
       if (res2.ok) {
-        Toast.show(`${isLeave ? "Leave" : "Advance"} request deleted`, "success");
+        Toast.show(`${cfg.label} request deleted`, "success");
         openApprovalsModal(emp, kind);
       } else {
         Toast.show(res2.error || "Could not delete the request", "error");
@@ -363,6 +407,56 @@ const PageEmployees = (() => {
       if (res2.ok) {
         Toast.show("Advance request deleted", "success");
         openApproveAdvancesModal();
+      } else {
+        Toast.show(res2.error || "Could not delete the request", "error");
+      }
+    }));
+  }
+
+  /** Bottom-bar "Approve Overtime" — mirrors openApproveLeavesModal/
+   *  openApproveAdvancesModal, every employee's overtime requests in
+   *  one list. */
+  async function openApproveOvertimeModal() {
+    const res = await Api.call("getOvertimeRequests", {});
+    const requests = res.ok ? res.requests : [];
+    const sorted = [...requests].sort((a, b) => (a.status === "Pending" ? 0 : 1) - (b.status === "Pending" ? 0 : 1));
+
+    const rowHtml = item => `
+      <div class="approval-row">
+        <div>
+          <div><strong>${Utils.escapeHtml(item.name)}</strong> — ${item.value} day${item.value === 1 ? "" : "s"} extra — ${Utils.formatDate(item.date)}</div>
+          <div class="card-sub">${Utils.escapeHtml(item.reason || "No reason given")}</div>
+        </div>
+        <div class="approval-actions">
+          ${item.status === "Pending"
+            ? `<button class="btn secondary sm" data-approve="${item.id}">Approve</button><button class="btn danger sm" data-reject="${item.id}">Reject</button>`
+            : Badge.render(item.status, item.status === "Approved" ? "success" : "danger")}
+          <button class="btn danger sm" data-delete="${item.id}" title="Permanently delete this overtime request">Delete</button>
+        </div>
+      </div>`;
+
+    const bodyHtml = sorted.length
+      ? `<div class="approval-list">${sorted.map(rowHtml).join("")}</div>`
+      : `<div class="card-sub">No overtime requests yet.</div>`;
+    const overlay = Modal.open({ title: "Overtime Requests — All Employees", bodyHtml, wide: true });
+
+    const decide = async (id, status) => {
+      const res2 = await Api.call("approveOvertime", { id, status });
+      if (res2.ok) {
+        Toast.show(`Request ${status.toLowerCase()}`, "success");
+        openApproveOvertimeModal();
+      } else {
+        Toast.show(res2.error || "Could not update the request", "error");
+      }
+    };
+    overlay.querySelectorAll("[data-approve]").forEach(btn => btn.addEventListener("click", () => decide(btn.dataset.approve, "Approved")));
+    overlay.querySelectorAll("[data-reject]").forEach(btn => btn.addEventListener("click", () => decide(btn.dataset.reject, "Rejected")));
+    overlay.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("click", async () => {
+      if (!confirm("Permanently delete this overtime request? This can't be undone.")) return;
+      const res2 = await Api.call("deleteOvertimeRequest", { id: btn.dataset.delete });
+      if (res2.ok) {
+        Toast.show("Overtime request deleted", "success");
+        openApproveOvertimeModal();
       } else {
         Toast.show(res2.error || "Could not delete the request", "error");
       }

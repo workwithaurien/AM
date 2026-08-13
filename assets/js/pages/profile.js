@@ -4,9 +4,10 @@
 const PageProfile = (() => {
   async function render(mount) {
     const user = Auth.getUser();
-    const [attRes, leaveRes, lettersRes, salaryRes] = await Promise.all([
+    const [attRes, leaveRes, overtimeRes, lettersRes, salaryRes] = await Promise.all([
       Api.call("getAttendanceCalendar"),
       Api.call("getLeaves"),
+      Api.call("getOvertimeRequests"),
       Api.call("getLetters"),
       Api.call("getSalary")
     ]);
@@ -24,6 +25,13 @@ const PageProfile = (() => {
           type: l.type,
           duration: l.duration === "Half Day" ? "Half Day" : "Full Day",
           status: Badge.render(l.status, l.status === "Approved" ? "success" : l.status === "Rejected" ? "danger" : "warning")
+        }))
+      : [];
+    const overtimeRows = overtimeRes.ok
+      ? overtimeRes.requests.map(o => ({
+          date: Utils.formatDate(o.date),
+          value: o.value,
+          status: Badge.render(o.status, o.status === "Approved" ? "success" : o.status === "Rejected" ? "danger" : "warning")
         }))
       : [];
     const letters = lettersRes.ok ? lettersRes.letters : [];
@@ -70,6 +78,12 @@ const PageProfile = (() => {
               [{ key: "from", label: "From" }, { key: "to", label: "To" }, { key: "type", label: "Type" }, { key: "duration", label: "Duration" }, { key: "status", label: "Status" }],
               leaveRows,
               { emptyText: "No leave applications yet." }
+            )}
+            <div class="section-head"><h2>Overtime History</h2></div>
+            ${DataTable.render(
+              [{ key: "date", label: "Date" }, { key: "value", label: "Days" }, { key: "status", label: "Status" }],
+              overtimeRows,
+              { emptyText: "No overtime logged yet." }
             )}
             <div class="section-head"><h2>Attendance History</h2></div>
             ${DataTable.render(
