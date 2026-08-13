@@ -76,6 +76,10 @@ const PageSalary = (() => {
     const parts = [];
     if (s.sundayBonusDays > 0) parts.push(`${s.sundayBonusDays} Sunday${s.sundayBonusDays === 1 ? "" : "s"} counted as present`);
     if (s.paidLeaveUsed > 0) parts.push(`${s.paidLeaveUsed} paid leave day${s.paidLeaveUsed === 1 ? "" : "s"} used`);
+    // Leave taken beyond the 1.5-day/month allowance is never added to
+    // presentDays — surfaced explicitly so it's obvious those extra days
+    // were NOT paid, not just silently missing from the total.
+    if (s.paidLeaveUnpaid > 0) parts.push(`${s.paidLeaveUnpaid} leave day${s.paidLeaveUnpaid === 1 ? "" : "s"} beyond the allowance — unpaid`);
     if (s.paidLeaveCashoutDays > 0) parts.push(`${s.paidLeaveCashoutDays}d unused leave cashed out`);
     return parts.join(" · ");
   }
