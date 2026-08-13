@@ -21,6 +21,7 @@ const PageEmployees = (() => {
       <div class="bottom-actions">
         <button class="btn secondary" id="baAssignTask">Assign Task</button>
         <button class="btn secondary" id="baApproveLeaves">Approve Leaves</button>
+        <button class="btn secondary" id="baApproveAdvances">Approve Advances</button>
         <button class="btn secondary" id="baAttendance">Attendance</button>
       </div>
     `;
@@ -29,6 +30,7 @@ const PageEmployees = (() => {
     document.getElementById("empSearch").addEventListener("input", Utils.debounce(e => renderGrid(e.target.value), 200));
     document.getElementById("baAssignTask").addEventListener("click", () => openAssignDailyTaskModal());
     document.getElementById("baApproveLeaves").addEventListener("click", openApproveLeavesModal);
+    document.getElementById("baApproveAdvances").addEventListener("click", openApproveAdvancesModal);
     document.getElementById("baAttendance").addEventListener("click", openAttendanceViewModal);
 
     renderGrid("");
@@ -139,15 +141,19 @@ const PageEmployees = (() => {
         <button class="btn secondary sm" data-act="leave">Approve Leave${emp.pendingLeaveCount ? ` (${emp.pendingLeaveCount})` : ""}</button>
         <button class="btn secondary sm" data-act="advance">Approve Advance${emp.pendingAdvanceCount ? ` (${emp.pendingAdvanceCount})` : ""}</button>
         <button class="btn secondary sm" data-act="salary">Update Salary</button>
+        <button class="btn secondary sm" data-act="closeSalary">Close Out Month</button>
         <button class="btn secondary sm" data-act="details">Edit Details</button>
         <button class="btn secondary sm" data-act="dailyTask">Assign Daily Task</button>
+        <button class="btn secondary sm" data-act="resetPassword">Reset Password</button>
       </div>`;
     drawer.querySelector(".drawer-body").insertAdjacentHTML("beforeend", actionsHtml);
     drawer.querySelectorAll("[data-act]").forEach(btn => {
       btn.addEventListener("click", () => {
         if (btn.dataset.act === "salary") { openUpdateSalaryModal(emp, empSalary); return; }
+        if (btn.dataset.act === "closeSalary") { closeSalaryMonth(emp); return; }
         if (btn.dataset.act === "details") { openEditDetailsModal(emp); return; }
         if (btn.dataset.act === "dailyTask") { openAssignDailyTaskModal(emp); return; }
+        if (btn.dataset.act === "resetPassword") { openResetPasswordModal(emp); return; }
         if (btn.dataset.act === "leave") { openApprovalsModal(emp, "leave"); return; }
         if (btn.dataset.act === "advance") { openApprovalsModal(emp, "advance"); return; }
         if (LETTER_TYPES[btn.dataset.act]) { openIssueLetterModal(emp, LETTER_TYPES[btn.dataset.act]); return; }
@@ -200,7 +206,13 @@ const PageEmployees = (() => {
 
   /** Shared by Approve Leave / Approve Advance — lists this employee's
    *  requests of that kind with Approve/Reject buttons on the pending
-   *  ones, and just a status badge on ones already decided. */
+   *  ones, and just a status badge on ones already decided. Every
+   *  request also gets a permanent Delete button — for undoing an
+   *  accidental approval, since Reject only applies to a still-Pending
+   *  request. Deleting an approved leave reverts the Attendance days it
+   *  marked "Leave"; deleting an approved advance reverses the amount
+   *  it added to Advance Taken (see deleteLeaveRequest_/
+   *  deleteAdvanceRequest_ in Code.gs). */
   async function openApprovalsModal(emp, kind) {
     const isLeave = kind === "leave";
     const res = await Api.call(isLeave ? "getLeaves" : "getAdvanceRequests", { uid: emp.uid });
@@ -218,6 +230,7 @@ const PageEmployees = (() => {
           ${item.status === "Pending"
             ? `<button class="btn secondary sm" data-approve="${item.id}">Approve</button><button class="btn danger sm" data-reject="${item.id}">Reject</button>`
             : Badge.render(item.status, item.status === "Approved" ? "success" : "danger")}
+          <button class="btn danger sm" data-delete="${item.id}" title="Permanently delete this request">Delete</button>
         </div>
       </div>`;
 
@@ -238,28 +251,44 @@ const PageEmployees = (() => {
     };
     overlay.querySelectorAll("[data-approve]").forEach(btn => btn.addEventListener("click", () => decide(btn.dataset.approve, "Approved")));
     overlay.querySelectorAll("[data-reject]").forEach(btn => btn.addEventListener("click", () => decide(btn.dataset.reject, "Rejected")));
+    overlay.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("click", async () => {
+      const warning = isLeave
+        ? "Permanently delete this leave request? If it was approved, the days it marked as Leave will revert to Present (or be removed if nothing else happened that day). This can't be undone."
+        : "Permanently delete this advance salary request? If it was approved, the amount will be removed from their Advance Taken. This can't be undone.";
+      if (!confirm(warning)) return;
+      const res2 = await Api.call(isLeave ? "deleteLeaveRequest" : "deleteAdvanceRequest", { id: btn.dataset.delete });
+      if (res2.ok) {
+        Toast.show(`${isLeave ? "Leave" : "Advance"} request deleted`, "success");
+        openApprovalsModal(emp, kind);
+      } else {
+        Toast.show(res2.error || "Could not delete the request", "error");
+      }
+    }));
   }
 
   /** Bottom-bar "Approve Leaves" — every employee's leave requests in one
    *  list (pending first), so admin doesn't need to open each card just
    *  to clear the queue. getLeaves with no uid returns everyone's when
-   *  the caller is admin. */
+   *  the caller is admin — including admins' own requests (Apply Leave
+   *  has no role gate), which is why this uses item.name straight from
+   *  the server rather than looking uid up against `all` (employees
+   *  only — an admin's request would show their raw UID instead). */
   async function openApproveLeavesModal() {
     const res = await Api.call("getLeaves", {});
     const leaves = res.ok ? res.leaves : [];
-    const nameFor = uid => (all.find(e => e.uid === uid) || {}).name || uid;
     const sorted = [...leaves].sort((a, b) => (a.status === "Pending" ? 0 : 1) - (b.status === "Pending" ? 0 : 1));
 
     const rowHtml = item => `
       <div class="approval-row">
         <div>
-          <div><strong>${Utils.escapeHtml(nameFor(item.uid))}</strong> — ${Utils.escapeHtml(item.type)} (${item.duration}) — ${Utils.formatDate(item.from)} to ${Utils.formatDate(item.to)}</div>
+          <div><strong>${Utils.escapeHtml(item.name)}</strong> — ${Utils.escapeHtml(item.type)} (${item.duration}) — ${Utils.formatDate(item.from)} to ${Utils.formatDate(item.to)}</div>
           <div class="card-sub">${Utils.escapeHtml(item.reason || "No reason given")}</div>
         </div>
         <div class="approval-actions">
           ${item.status === "Pending"
             ? `<button class="btn secondary sm" data-approve="${item.id}">Approve</button><button class="btn danger sm" data-reject="${item.id}">Reject</button>`
             : Badge.render(item.status, item.status === "Approved" ? "success" : "danger")}
+          <button class="btn danger sm" data-delete="${item.id}" title="Permanently delete this leave request">Delete</button>
         </div>
       </div>`;
 
@@ -279,6 +308,65 @@ const PageEmployees = (() => {
     };
     overlay.querySelectorAll("[data-approve]").forEach(btn => btn.addEventListener("click", () => decide(btn.dataset.approve, "Approved")));
     overlay.querySelectorAll("[data-reject]").forEach(btn => btn.addEventListener("click", () => decide(btn.dataset.reject, "Rejected")));
+    overlay.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("click", async () => {
+      if (!confirm("Permanently delete this leave request? If it was approved, the days it marked as Leave will revert to Present (or be removed if nothing else happened that day). This can't be undone.")) return;
+      const res2 = await Api.call("deleteLeaveRequest", { id: btn.dataset.delete });
+      if (res2.ok) {
+        Toast.show("Leave request deleted", "success");
+        openApproveLeavesModal();
+      } else {
+        Toast.show(res2.error || "Could not delete the request", "error");
+      }
+    }));
+  }
+
+  /** Bottom-bar "Approve Advances" — mirrors openApproveLeavesModal,
+   *  every employee's advance salary requests in one list. */
+  async function openApproveAdvancesModal() {
+    const res = await Api.call("getAdvanceRequests", {});
+    const requests = res.ok ? res.requests : [];
+    const sorted = [...requests].sort((a, b) => (a.status === "Pending" ? 0 : 1) - (b.status === "Pending" ? 0 : 1));
+
+    const rowHtml = item => `
+      <div class="approval-row">
+        <div>
+          <div><strong>${Utils.escapeHtml(item.name)}</strong> — ${Utils.currency(item.amount)}</div>
+          <div class="card-sub">${Utils.escapeHtml(item.reason || "No reason given")}</div>
+        </div>
+        <div class="approval-actions">
+          ${item.status === "Pending"
+            ? `<button class="btn secondary sm" data-approve="${item.id}">Approve</button><button class="btn danger sm" data-reject="${item.id}">Reject</button>`
+            : Badge.render(item.status, item.status === "Approved" ? "success" : "danger")}
+          <button class="btn danger sm" data-delete="${item.id}" title="Permanently delete this advance request">Delete</button>
+        </div>
+      </div>`;
+
+    const bodyHtml = sorted.length
+      ? `<div class="approval-list">${sorted.map(rowHtml).join("")}</div>`
+      : `<div class="card-sub">No advance salary requests yet.</div>`;
+    const overlay = Modal.open({ title: "Advance Salary Requests — All Employees", bodyHtml, wide: true });
+
+    const decide = async (id, status) => {
+      const res2 = await Api.call("approveAdvance", { id, status });
+      if (res2.ok) {
+        Toast.show(`Request ${status.toLowerCase()}`, "success");
+        openApproveAdvancesModal();
+      } else {
+        Toast.show(res2.error || "Could not update the request", "error");
+      }
+    };
+    overlay.querySelectorAll("[data-approve]").forEach(btn => btn.addEventListener("click", () => decide(btn.dataset.approve, "Approved")));
+    overlay.querySelectorAll("[data-reject]").forEach(btn => btn.addEventListener("click", () => decide(btn.dataset.reject, "Rejected")));
+    overlay.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("click", async () => {
+      if (!confirm("Permanently delete this advance salary request? If it was approved, the amount will be removed from their Advance Taken. This can't be undone.")) return;
+      const res2 = await Api.call("deleteAdvanceRequest", { id: btn.dataset.delete });
+      if (res2.ok) {
+        Toast.show("Advance request deleted", "success");
+        openApproveAdvancesModal();
+      } else {
+        Toast.show(res2.error || "Could not delete the request", "error");
+      }
+    }));
   }
 
   /** Bottom-bar "Attendance" — pick any employee and browse their
@@ -401,6 +489,51 @@ const PageEmployees = (() => {
         Modal.close();
       } else {
         Toast.show(res.error || "Could not update salary", "error");
+      }
+    });
+  }
+
+  /** Records this month's live-computed present days/earnings as a
+   *  permanent "Paid" row in Salary History and resets Advance Taken to
+   *  ₹0 — for closing out payroll from within the app instead of typing
+   *  rows into the raw Sheet by hand every month. Refuses to double-close
+   *  the same month (enforced server-side). */
+  async function closeSalaryMonth(emp) {
+    if (!confirm(`Close out this month's salary for ${emp.name}? This records their current present days and earnings as a permanent "Paid" entry in Salary History, and resets their Advance Taken to ₹0. This can't be undone.`)) return;
+    const res = await Api.call("closeSalaryMonth", { uid: emp.uid });
+    if (res.ok) {
+      Toast.show("Month closed out and recorded as Paid", "success");
+    } else {
+      Toast.show(res.error || "Could not close out this month", "error");
+    }
+  }
+
+  /** Admin sets a new password directly — no need to know the current
+   *  one, for recovering an employee who's locked out. Pre-fills a
+   *  random one so admin can just accept it and relay to the employee,
+   *  or type their own instead. */
+  function openResetPasswordModal(emp) {
+    const generated = Math.random().toString(36).slice(-8);
+    const bodyHtml = `
+      <form id="resetPwForm">
+        <div class="field"><label>New Password</label>
+          <input class="input" type="text" name="newPassword" value="${generated}" minlength="6" required /></div>
+        <div class="card-sub">Share this new password with ${Utils.escapeHtml(emp.name)} directly — it won't be shown again after this.</div>
+      </form>`;
+    const footerHtml = `
+      <button class="btn secondary" type="button" id="resetPwCancel">Cancel</button>
+      <button class="btn" type="submit" form="resetPwForm">Set New Password</button>`;
+    const overlay = Modal.open({ title: `Reset Password — ${emp.name}`, bodyHtml, footerHtml });
+    overlay.querySelector("#resetPwCancel").addEventListener("click", Modal.close);
+    overlay.querySelector("#resetPwForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const res = await Api.call("resetPassword", { uid: emp.uid, newPassword: fd.get("newPassword") });
+      if (res.ok) {
+        Toast.show("Password reset", "success");
+        Modal.close();
+      } else {
+        Toast.show(res.error || "Could not reset password", "error");
       }
     });
   }
