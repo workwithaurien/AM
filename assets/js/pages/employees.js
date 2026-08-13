@@ -398,15 +398,21 @@ const PageEmployees = (() => {
         const d = new Date(iso + "T00:00:00");
         return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
       };
-      const present = records.filter(r => r.status === "Present" && inMonth(r.date)).length;
-      const absent = records.filter(r => r.status === "Absent" && inMonth(r.date)).length;
+      const monthRows = records.filter(r => inMonth(r.date));
+      const leaveRows = monthRows.filter(r => r.status === "Leave");
       // Sums Leave Value (0.5 for a half-day request) rather than just
       // counting rows, so a half-day leave shows as 0.5, not 1. The
       // 1.5-day/month paid allowance is applied to whichever month is in
       // view here (not just "this real month" like the Salary page),
       // computed client-side since it only needs this same total.
-      const totalLeaveDays = records.filter(r => r.status === "Leave" && inMonth(r.date))
-        .reduce((sum, r) => sum + (Number(r.leaveValue) || 1), 0);
+      const totalLeaveDays = leaveRows.reduce((sum, r) => sum + (Number(r.leaveValue) || 1), 0);
+      // A Half Day leave (Leave Value 0.5) means the other half of that
+      // day was worked — credit 0.5 toward Present on top of the
+      // explicit Present-status days (a Full Day leave credits nothing
+      // extra, since 1 - 1 = 0).
+      const halfDayPresentCredit = leaveRows.reduce((sum, r) => sum + (1 - (Number(r.leaveValue) || 1)), 0);
+      const present = monthRows.filter(r => r.status === "Present").length + halfDayPresentCredit;
+      const absent = monthRows.filter(r => r.status === "Absent").length;
       const paidUsed = paidLeave.eligible ? Math.min(totalLeaveDays, 1.5) : 0;
       const unpaid = paidLeave.eligible ? Math.max(0, totalLeaveDays - 1.5) : totalLeaveDays;
       const leaveSub = !paidLeave.eligible

@@ -49,13 +49,24 @@ const PageAttendance = (() => {
     return res;
   }
 
+  /** A Half Day leave (Leave Value 0.5) means the other half of that day
+   *  was worked, so it credits 0.5 toward Present on top of the explicit
+   *  Present-status days — a Full Day leave (Leave Value 1) credits
+   *  nothing extra (1 - 1 = 0), so this is safe to apply uniformly. */
+  function presentCount_(rows) {
+    const explicit = rows.filter(a => a.status === "Present").length;
+    const halfDayCredit = rows.filter(a => a.status === "Leave")
+      .reduce((sum, a) => sum + (1 - (Number(a.leaveValue) || 1)), 0);
+    return explicit + halfDayCredit;
+  }
+
   function countsFor(holidays, attendance, year, monthIndex) {
     const inMonth = iso => {
       const d = new Date(iso + "T00:00:00");
       return d.getFullYear() === year && d.getMonth() === monthIndex;
     };
     return {
-      present: attendance.filter(a => a.status === "Present" && inMonth(a.date)).length,
+      present: presentCount_(attendance.filter(a => inMonth(a.date))),
       absent: attendance.filter(a => a.status === "Absent" && inMonth(a.date)).length,
       holidays: holidays.filter(h => inMonth(h.date)).length
     };
@@ -132,7 +143,7 @@ const PageAttendance = (() => {
   function adminView(holidays, attendance) {
     const year = new Date().getFullYear();
     const yearCounts = {
-      present: attendance.filter(a => a.status === "Present" && a.date.startsWith(String(year))).length,
+      present: presentCount_(attendance.filter(a => a.date.startsWith(String(year)))),
       absent: attendance.filter(a => a.status === "Absent" && a.date.startsWith(String(year))).length,
       holidays: holidays.filter(h => h.date.startsWith(String(year))).length
     };
