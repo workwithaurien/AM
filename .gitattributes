@@ -1,0 +1,4 @@
+# Normalize line endings to LF in the repo regardless of the local
+# checkout's core.autocrlf setting — avoids every text file showing as
+# "modified" on Windows when nothing actually changed.
+* text=auto eol=lf
