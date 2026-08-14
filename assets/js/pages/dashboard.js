@@ -177,7 +177,11 @@ const PageDashboard = (() => {
 
       <div class="section-head"><h2>Payroll &amp; Financials</h2></div>
       <div class="grid grid-3">
-        ${Card.stat({ label: "Total Monthly Payroll", value: Utils.currency(payroll.totalMonthlyPayroll), sub: "Sum of everyone's Monthly Salary" })}
+        <div class="card clickable" id="payrollCard" style="cursor:pointer">
+          <div class="card-label">Total Monthly Payroll</div>
+          <div class="card-value">${Utils.currency(payroll.totalEarnedTillDate)}</div>
+          <div class="card-sub">of ${Utils.currency(payroll.totalMonthlyPayroll)} committed this month · click for breakdown</div>
+        </div>
         ${Card.stat({ label: "Advances Outstanding", value: Utils.currency(payroll.totalAdvancesOutstanding), sub: "Across all staff" })}
         ${Card.stat({ label: "Not Closed Out This Month", value: String(payroll.notClosedOutNames.length), sub: truncatedNameListHtml(payroll.notClosedOutNames, "Everyone's closed out") })}
       </div>
@@ -235,6 +239,25 @@ const PageDashboard = (() => {
         window.location.hash = `#employees?open=${row.dataset.openApproval}`;
       });
     });
+    document.getElementById("payrollCard").addEventListener("click", () => openPayrollBreakdownModal(payroll.breakdown));
+  }
+
+  /** Per-person breakdown behind the "Total Monthly Payroll" card —
+   *  Present Days/Total Working Days for everyone paid via the normal
+   *  attendance-based calculator, or a flat "Freelancer" tag for anyone
+   *  paid a manually-set amount instead (see computeSalary_'s
+   *  isFreelancer branch — there's no day count to show for those). */
+  function openPayrollBreakdownModal(breakdown) {
+    const bodyHtml = DataTable.render(
+      [{ key: "name", label: "Employee" }, { key: "attendance", label: "Attendance" }, { key: "earned", label: "Earned So Far" }],
+      breakdown.map(p => ({
+        name: Utils.escapeHtml(p.name),
+        attendance: p.isFreelancer ? Badge.render("Freelancer — flat amount", "neutral") : `${p.presentDays} of ${p.totalWorkingDays} days`,
+        earned: Utils.currency(p.earned)
+      })),
+      { emptyText: "No salary records yet." }
+    );
+    Modal.open({ title: "Payroll Breakdown — This Month", bodyHtml, wide: true });
   }
 
   function openApplyLeaveModal() {
