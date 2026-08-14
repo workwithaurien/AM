@@ -4,3 +4,6 @@
 # Backend source — deployed by pasting into the Apps Script editor and
 # redeploying, not through GitHub/GitHub Pages. Kept locally, not tracked.
 apps-script/
+
+# Project notes — kept locally for reference, not published to GitHub.
+README.md
