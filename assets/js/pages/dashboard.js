@@ -207,7 +207,7 @@ const PageDashboard = (() => {
               ${conduct.nearWarningLimit.map(w => Badge.render(`${Utils.escapeHtml(w.name)}: ${w.count} of 3`, "warning")).join("")}
             </div>` : `<div class="card-sub" style="margin-top:6px">No one is close to the 3-warning limit.</div>`}
         </div>
-        <div>
+        <div id="recentLettersHost">
           ${DataTable.render(
             [{ key: "type", label: "Type" }, { key: "name", label: "Employee" }, { key: "subject", label: "Subject" }, { key: "date", label: "Date" }],
             conduct.recentLetters.map(l => ({
@@ -216,7 +216,7 @@ const PageDashboard = (() => {
               subject: Utils.escapeHtml(l.subject),
               date: Utils.formatDate(l.date)
             })),
-            { emptyText: "No warning or appreciation letters issued yet." }
+            { emptyText: "No warning or appreciation letters issued yet.", onRowClick: true }
           )}
         </div>
       </div>
@@ -240,6 +240,14 @@ const PageDashboard = (() => {
       });
     });
     document.getElementById("payrollCard").addEventListener("click", () => openPayrollBreakdownModal(payroll.breakdown));
+    // Click a recent Warning/Appreciation row to open the same
+    // formatted, downloadable letter its own Profile page and the
+    // Employees drawer's Letters tab use (see letterDoc.js).
+    DataTable.bindRowClicks(
+      document.getElementById("recentLettersHost"),
+      conduct.recentLetters,
+      letter => LetterDoc.open(letter, letter.employee)
+    );
   }
 
   /** Per-person breakdown behind the "Total Monthly Payroll" card —
