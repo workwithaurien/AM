@@ -179,7 +179,7 @@ const PageDashboard = (() => {
 
       <div class="section-head"><h2>Team &amp; Attendance</h2></div>
       <div class="grid grid-4">
-        ${Card.stat({ label: "Present", value: `${team.presentToday}/${team.attendanceEligibleTotal}`, sub: "Freelancers excluded" })}
+        ${Card.stat({ label: "Present", value: `${team.presentToday}/${team.attendanceEligibleTotal}` })}
         ${Card.stat({ label: "Absent", value: String(team.absentToday), sub: nameListHtml(team.absentNames, "") })}
         ${Card.stat({ label: "On Leave", value: String(team.onLeaveToday), sub: nameListHtml(team.onLeaveNames, "") })}
         ${Card.stat({ label: "Not Marked", value: String(team.notMarkedToday) })}
