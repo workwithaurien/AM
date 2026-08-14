@@ -183,7 +183,11 @@ const PageDashboard = (() => {
           <div class="card-sub">of ${Utils.currency(payroll.totalMonthlyPayroll)} committed this month · click for breakdown</div>
         </div>
         ${Card.stat({ label: "Advances Outstanding", value: Utils.currency(payroll.totalAdvancesOutstanding), sub: "Across all staff" })}
-        ${Card.stat({ label: "Not Closed Out This Month", value: String(payroll.notClosedOutNames.length), sub: truncatedNameListHtml(payroll.notClosedOutNames, "Everyone's closed out") })}
+        <div class="card clickable" id="notClosedOutCard" style="cursor:pointer">
+          <div class="card-label">Not Closed Out This Month</div>
+          <div class="card-value">${payroll.notClosedOut.length}</div>
+          <div class="card-sub">${truncatedNameListHtml(payroll.notClosedOut.map(p => p.name), "Everyone's closed out")}${payroll.notClosedOut.length ? " · click to close out" : ""}</div>
+        </div>
       </div>
 
       <div class="section-head"><h2>Approvals Queue</h2></div>
@@ -248,6 +252,44 @@ const PageDashboard = (() => {
       conduct.recentLetters,
       letter => LetterDoc.open(letter, letter.employee)
     );
+    document.getElementById("notClosedOutCard").addEventListener("click", () => openCloseOutModal(payroll.notClosedOut));
+  }
+
+  /** Lets the CEO close out each not-yet-closed-out employee straight
+   *  from the dashboard instead of opening every employee's drawer one
+   *  at a time. One "Close Out" button per person (not a single bulk
+   *  action) — closing out is permanent (records this month's live
+   *  present days/earnings as a locked SalaryHistory row and resets
+   *  Advance Taken), so each one is still a deliberate, individually
+   *  confirmed action, same as the drawer's own version of this. */
+  function openCloseOutModal(list) {
+    const bodyHtml = list.length
+      ? `<div class="approval-list">
+          ${list.map(p => `
+            <div class="approval-row">
+              <div>
+                <div><strong>${Utils.escapeHtml(p.name)}</strong></div>
+                <div class="card-sub">${p.isFreelancer ? "Freelancer — flat amount" : `${p.presentDays} of ${p.totalWorkingDays} days`} · ${Utils.currency(p.earned)} earned so far</div>
+              </div>
+              <button class="btn secondary sm" data-close-out="${p.uid}">Close Out</button>
+            </div>`).join("")}
+        </div>`
+      : `<div class="card-sub">Everyone's already closed out this month.</div>`;
+    const overlay = Modal.open({ title: "Close Out Month", bodyHtml, wide: true });
+    overlay.querySelectorAll("[data-close-out]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const uid = btn.dataset.closeOut;
+        const person = list.find(p => p.uid === uid);
+        if (!confirm(`Close out this month's salary for ${person.name}? This records their current present days and earnings as a permanent "Paid" entry in Salary History, and resets their Advance Taken to ₹0. This can't be undone.`)) return;
+        const res = await Api.call("closeSalaryMonth", { uid });
+        if (res.ok) {
+          Toast.show(`${person.name} closed out`, "success");
+          openCloseOutModal(list.filter(p => p.uid !== uid)); // reopen with the closed-out person removed
+        } else {
+          Toast.show(res.error || "Could not close out this employee", "error");
+        }
+      });
+    });
   }
 
   /** Per-person breakdown behind the "Total Monthly Payroll" card —
