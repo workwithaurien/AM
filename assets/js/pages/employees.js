@@ -138,16 +138,19 @@ const PageEmployees = (() => {
             <div><div class="k">Employment Type</div><div class="v">${Utils.escapeHtml(emp.employmentType)}</div></div>
             <div><div class="k">Status</div><div class="v">${Badge.render(emp.status, "success")}</div></div>
           </div>` },
-        { id: "attendance", label: "Attendance", render: () => DataTable.render(
-            [{ key: "date", label: "Date" }, { key: "status", label: "Status" }, { key: "loginTime", label: "Login" }, { key: "logoutTime", label: "Logout" }],
-            empAttendance.map(r => ({
-              date: Utils.formatDate(r.date),
-              status: Badge.render(r.status, r.status === "Present" ? "success" : r.status === "Absent" ? "danger" : r.status === "Leave" ? "warning" : "neutral"),
-              loginTime: r.loginTime || "—",
-              logoutTime: r.logoutTime || "—"
-            })),
-            { emptyText: "No attendance records yet." }
-          ) },
+        { id: "attendance", label: "Attendance", render: () => `
+            ${emp.employmentType !== "Freelancer" ? `<button class="btn secondary sm" data-add-attendance="1" style="margin-bottom:10px">Add/Edit Entry</button>` : ""}
+            ${DataTable.render(
+              [{ key: "date", label: "Date" }, { key: "status", label: "Status" }, { key: "loginTime", label: "Login" }, { key: "logoutTime", label: "Logout" }],
+              empAttendance.map(r => ({
+                date: Utils.formatDate(r.date),
+                status: Badge.render(r.status, r.status === "Present" ? "success" : r.status === "Absent" ? "danger" : r.status === "Leave" ? "warning" : "neutral"),
+                loginTime: r.loginTime || "—",
+                logoutTime: r.logoutTime || "—"
+              })),
+              { emptyText: "No attendance records yet." }
+            )}
+          ` },
         { id: "salary", label: "Salary", render: () => empSalary ? (empSalary.isFreelancer ? `
             <div class="grid grid-2">
               ${Card.stat({ label: "Amount Owed (This Cycle)", value: Utils.currency(empSalary.monthlySalary), sub: "Set manually — not attendance-based" })}
@@ -190,11 +193,13 @@ const PageEmployees = (() => {
           ) }
       ]
     });
-    // Delegated (not bound per-render) since the Letters tab's body gets
-    // replaced with fresh HTML every time it's switched to — see drawer.js.
+    // Delegated (not bound per-render) since the Letters/Attendance tab
+    // bodies get replaced with fresh HTML every time they're switched
+    // to — see drawer.js.
     drawer.addEventListener("click", e => {
-      const btn = e.target.closest("[data-view-letter]");
-      if (btn) LetterDoc.open(letterById[btn.dataset.viewLetter], emp);
+      const viewLetterBtn = e.target.closest("[data-view-letter]");
+      if (viewLetterBtn) { LetterDoc.open(letterById[viewLetterBtn.dataset.viewLetter], emp); return; }
+      if (e.target.closest("[data-add-attendance]")) openSetAttendanceModal(emp);
     });
 
     const actionsHtml = `
@@ -308,6 +313,65 @@ const PageEmployees = (() => {
       noItemsLabel: "overtime"
     }
   };
+
+  /** Lets an Admin/CEO manually create or overwrite one Attendance row —
+   *  for backfilling a day someone forgot to log in, or fixing a
+   *  mistake, without needing a Leave request to cover it. Login/Logout
+   *  Time only matter for Present; Half Day only matters for Leave —
+   *  toggled in and out as the Status dropdown changes so the form
+   *  never shows a field that wouldn't be used. */
+  function openSetAttendanceModal(emp) {
+    const bodyHtml = `
+      <form id="attEntryForm">
+        <div class="field"><label>Date</label><input class="input" type="date" name="date" value="${Utils.todayIso()}" required /></div>
+        <div class="field"><label>Status</label>
+          <select class="input" name="status" id="attStatusSelect">
+            <option value="Present">Present</option>
+            <option value="Absent">Absent</option>
+            <option value="Leave">Leave</option>
+          </select></div>
+        <div class="grid grid-2" id="attTimeFields">
+          <div class="field"><label>Login Time</label><input class="input" type="time" name="loginTime" /></div>
+          <div class="field"><label>Logout Time</label><input class="input" type="time" name="logoutTime" /></div>
+        </div>
+        <div class="field" id="attHalfDayField" style="display:none">
+          <label><input type="checkbox" name="halfDay" /> Half Day</label>
+        </div>
+      </form>`;
+    const footerHtml = `
+      <button class="btn secondary" type="button" id="attEntryCancel">Cancel</button>
+      <button class="btn" type="submit" form="attEntryForm">Save</button>`;
+    const overlay = Modal.open({ title: `Set Attendance — ${emp.name}`, bodyHtml, footerHtml });
+
+    const statusSelect = overlay.querySelector("#attStatusSelect");
+    const timeFields = overlay.querySelector("#attTimeFields");
+    const halfDayField = overlay.querySelector("#attHalfDayField");
+    const syncFields = () => {
+      timeFields.style.display = statusSelect.value === "Present" ? "" : "none";
+      halfDayField.style.display = statusSelect.value === "Leave" ? "" : "none";
+    };
+    statusSelect.addEventListener("change", syncFields);
+    syncFields();
+
+    overlay.querySelector("#attEntryCancel").addEventListener("click", Modal.close);
+    overlay.querySelector("#attEntryForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = {
+        uid: emp.uid, date: fd.get("date"), status: fd.get("status"),
+        loginTime: fd.get("loginTime") || "", logoutTime: fd.get("logoutTime") || "",
+        halfDay: fd.get("halfDay") === "on"
+      };
+      const res = await Api.call("setAttendanceEntry", payload);
+      if (res.ok) {
+        Toast.show("Attendance updated", "success");
+        Modal.close();
+        openDrawer(emp); // refresh the drawer's Attendance tab with the new/updated entry
+      } else {
+        Toast.show(res.error || "Could not update attendance", "error");
+      }
+    });
+  }
 
   /** Shared by Issue Warning / Performance Note / Issue Appreciation — all
    *  three just write a row to the Letters sheet with a different Type.
