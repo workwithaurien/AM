@@ -80,15 +80,21 @@ const PageEmployees = (() => {
     // Fetch this employee's real reports + salary + attendance history
     // before opening, so every drawer tab can render synchronously off
     // already-loaded data.
-    const [reportsRes, salaryRes, attRes] = await Promise.all([
+    const [reportsRes, salaryRes, attRes, lettersRes] = await Promise.all([
       Api.call("getWorkReports", { employeeName: emp.name }),
       Api.call("getSalary", { uid: emp.uid }),
-      Api.call("getAttendanceCalendar", { uid: emp.uid })
+      Api.call("getAttendanceCalendar", { uid: emp.uid }),
+      Api.call("getLetters", { uid: emp.uid })
     ]);
     const empReports = reportsRes.ok ? reportsRes.reports : [];
     const empSalary = salaryRes.ok ? salaryRes.salary : null;
     // Newest first, same convention as Work Reports.
     const empAttendance = (attRes.ok ? attRes.records : []).slice().sort((a, b) => b.date.localeCompare(a.date));
+    // Performance Notes aren't formal documents (no Subject, no PDF) —
+    // this history is only the two letter types LetterDoc can render.
+    const empLetters = lettersRes.ok ? lettersRes.letters.filter(l => l.type === "Warning" || l.type === "Appreciation") : [];
+    const letterById = {};
+    empLetters.forEach(l => { letterById[l.id] = l; });
 
     const footerHtml = `<button class="btn ${emp.status === "Disabled" ? "" : "danger"} sm" id="statusBtn">${emp.status === "Disabled" ? "Enable Employee" : "Disable Employee"}</button>`;
     const drawer = Drawer.open({
@@ -131,8 +137,27 @@ const PageEmployees = (() => {
           ) },
         { id: "documents", label: "Documents", render: () => emp.documentsFolderUrl
             ? `<a class="btn secondary sm" href="${Utils.escapeHtml(emp.documentsFolderUrl)}" target="_blank" rel="noopener">Open Documents Folder</a>`
-            : `<div class="card-sub">No documents folder linked yet — add one from "Edit Details" below.</div>` }
+            : `<div class="card-sub">No documents folder linked yet — add one from "Edit Details" below.</div>` },
+        { id: "letters", label: "Letters", render: () => DataTable.render(
+            [{ key: "type", label: "Type" }, { key: "subject", label: "Subject" }, { key: "date", label: "Date" }, { key: "issuedBy", label: "Issued By" }, { key: "action", label: "" }],
+            empLetters.map(l => ({
+              type: l.type === "Warning"
+                ? `${Badge.render("Warning", "danger")} ${l.warningNumber ? `<span class="card-sub">${l.warningNumber} of 3</span>` : ""}`
+                : Badge.render("Appreciation", "success"),
+              subject: Utils.escapeHtml(l.subject),
+              date: Utils.formatDate(l.date),
+              issuedBy: Utils.escapeHtml(l.issuedBy),
+              action: `<button class="btn secondary sm" data-view-letter="${l.id}">View PDF</button>`
+            })),
+            { emptyText: "No warning or appreciation letters yet." }
+          ) }
       ]
+    });
+    // Delegated (not bound per-render) since the Letters tab's body gets
+    // replaced with fresh HTML every time it's switched to — see drawer.js.
+    drawer.addEventListener("click", e => {
+      const btn = e.target.closest("[data-view-letter]");
+      if (btn) LetterDoc.open(letterById[btn.dataset.viewLetter], emp);
     });
 
     const actionsHtml = `
@@ -248,13 +273,24 @@ const PageEmployees = (() => {
   };
 
   /** Shared by Issue Warning / Performance Note / Issue Appreciation — all
-   *  three just write a row to the Letters sheet with a different Type. */
+   *  three just write a row to the Letters sheet with a different Type.
+   *  Warning and Appreciation get a formal Subject + Body form and, once
+   *  issued, open a formatted, printable letter (LetterDoc) the admin
+   *  can download as a PDF right away. Performance Note stays a plain
+   *  single-message note — it was never meant to be a formal document. */
   function openIssueLetterModal(emp, type) {
-    const bodyHtml = `
-      <form id="letterForm">
-        <div class="field"><label>Message</label>
-          <textarea class="input" name="message" rows="4" placeholder="What's this about?" required></textarea></div>
-      </form>`;
+    const isFormal = type === "Warning" || type === "Appreciation";
+    const bodyHtml = isFormal
+      ? `<form id="letterForm">
+          <div class="field"><label>Subject</label>
+            <input class="input" type="text" name="subject" placeholder="${type === "Warning" ? "e.g. Repeated late arrival" : "e.g. Outstanding work on the DeoDap campaign"}" required /></div>
+          <div class="field"><label>Body</label>
+            <textarea class="input" name="message" rows="6" placeholder="Full letter text..." required></textarea></div>
+        </form>`
+      : `<form id="letterForm">
+          <div class="field"><label>Message</label>
+            <textarea class="input" name="message" rows="4" placeholder="What's this about?" required></textarea></div>
+        </form>`;
     const footerHtml = `
       <button class="btn secondary" type="button" id="letterCancel">Cancel</button>
       <button class="btn" type="submit" form="letterForm">Issue</button>`;
@@ -263,10 +299,25 @@ const PageEmployees = (() => {
     overlay.querySelector("#letterForm").addEventListener("submit", async e => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const res = await Api.call("issueLetter", { uid: emp.uid, type, message: fd.get("message") });
+      const subject = isFormal ? fd.get("subject") : "";
+      const message = fd.get("message");
+      const res = await Api.call("issueLetter", { uid: emp.uid, type, subject, message });
       if (res.ok) {
         Toast.show(`${type} issued`, "success");
         Modal.close();
+        if (isFormal) {
+          LetterDoc.open({
+            type, subject, message,
+            date: Utils.todayIso(),
+            issuedBy: Auth.getUser().name,
+            warningNumber: res.warningNumber || ""
+          }, emp);
+          // The drawer's Letters tab (and pending counts) were fetched
+          // when the drawer first opened — reopen it so the letter that
+          // was just issued actually shows up instead of only appearing
+          // after a manual close/reopen.
+          openDrawer(emp);
+        }
       } else {
         Toast.show(res.error || "Could not issue this", "error");
       }

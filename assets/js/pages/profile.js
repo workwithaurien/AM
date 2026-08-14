@@ -37,6 +37,11 @@ const PageProfile = (() => {
     const letters = lettersRes.ok ? lettersRes.letters : [];
     const warningCount = letters.filter(l => l.type === "Warning").length;
     const appreciationCount = letters.filter(l => l.type === "Appreciation").length;
+    // Performance Notes aren't formal documents (no Subject, no PDF) —
+    // this history is only the two letter types LetterDoc can render.
+    const formalLetters = letters.filter(l => l.type === "Warning" || l.type === "Appreciation");
+    const letterById = {};
+    formalLetters.forEach(l => { letterById[l.id] = l; });
     const monthlySalary = salaryRes.ok ? Utils.currency(salaryRes.salary.monthlySalary) : "Not set";
 
     mount.innerHTML = `
@@ -73,6 +78,20 @@ const PageProfile = (() => {
                   : "Not linked"
               })}
             </div>
+            <div class="section-head"><h2>Warning &amp; Appreciation Letters</h2></div>
+            ${DataTable.render(
+              [{ key: "type", label: "Type" }, { key: "subject", label: "Subject" }, { key: "date", label: "Date" }, { key: "issuedBy", label: "Issued By" }, { key: "action", label: "" }],
+              formalLetters.map(l => ({
+                type: l.type === "Warning"
+                  ? `${Badge.render("Warning", "danger")} ${l.warningNumber ? `<span class="card-sub">${l.warningNumber} of 3</span>` : ""}`
+                  : Badge.render("Appreciation", "success"),
+                subject: Utils.escapeHtml(l.subject),
+                date: Utils.formatDate(l.date),
+                issuedBy: Utils.escapeHtml(l.issuedBy),
+                action: `<button class="btn secondary sm" data-view-letter="${l.id}">View PDF</button>`
+              })),
+              { emptyText: "No warning or appreciation letters yet." }
+            )}
             <div class="section-head"><h2>Leave History</h2></div>
             ${DataTable.render(
               [{ key: "from", label: "From" }, { key: "to", label: "To" }, { key: "type", label: "Type" }, { key: "duration", label: "Duration" }, { key: "status", label: "Status" }],
@@ -97,6 +116,9 @@ const PageProfile = (() => {
     `;
 
     document.getElementById("changePwBtn").addEventListener("click", openChangePassword);
+    mount.querySelectorAll("[data-view-letter]").forEach(btn => {
+      btn.addEventListener("click", () => LetterDoc.open(letterById[btn.dataset.viewLetter], user));
+    });
   }
 
   function hoursBetween(loginTime, logoutTime) {
