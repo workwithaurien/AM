@@ -136,7 +136,7 @@ const LetterDoc = (() => {
   .body p { font-size: 15px; line-height: 1.75; margin: 0 0 14px; }
 
   .sign-block { margin-top: 64px; font-family: -apple-system, Segoe UI, sans-serif; font-size: 13.5px; }
-  .sign-block .sign-rule { width: 240px; border: none; border-top: 2px solid ${GOLD}; margin-bottom: 12px; }
+  .sign-block .sign-rule { width: 240px; border: none; border-top: 2px solid ${GOLD}; margin: 0 0 12px; }
   .sign-block .sig-name { font-weight: 700; color: ${NAVY}; font-size: 15px; }
   .sign-block .sig-role, .sign-block .sig-company { color: #666; margin-top: 2px; }
 
