@@ -3,17 +3,17 @@
  */
 const PageDashboard = (() => {
   async function render(mount) {
+    // CEO gets a completely different, company-wide master dashboard —
+    // see renderCeoOverview — instead of the "my own attendance/salary"
+    // view every Admin/Employee/Freelancer gets below.
+    if (Auth.isCeo()) return renderCeoOverview(mount);
+
     const user = Auth.getUser();
     const res = await Api.call("getDashboard");
     if (!res.ok) { mount.innerHTML = errorState(res.error); return; }
 
     const { announcements, salary, reportSubmittedToday, todayAttendance, todaysTask } = res;
     const isAdmin = Auth.isAdmin();
-    // CEO oversees the team rather than doing their own tracked
-    // day-to-day work, so their own Login/Logout, Attendance Summary,
-    // Working Hours, and Salary Earned cards don't apply — a regular
-    // Admin still gets all four, unchanged.
-    const isCeo = Auth.isCeo();
     // Freelancers are paid a manually-set amount each cycle, not via
     // Present-Days attendance tracking — no Login/Logout/Break, no
     // Attendance Summary/Working Hours stats, no Apply Leave/Log
@@ -49,9 +49,7 @@ const PageDashboard = (() => {
           ${onBreak ? "End Break" : "Take Break"}
         </button>` : ""}
       </div>`;
-    const topCardsHtml = isCeo
-      ? ""
-      : isAdmin
+    const topCardsHtml = isAdmin
       ? `<div class="grid grid-4">
           ${attendanceLoginCard}
           ${Card.stat({ label: "Attendance Summary", value: salary.presentDays + "/" + salary.totalWorkingDays, sub: "Present days this month" })}
@@ -119,8 +117,8 @@ const PageDashboard = (() => {
 
       <div class="quick-actions">
         ${isAdmin ? "" : `<button class="btn" id="qaReport">Submit Work Report</button>`}
-        ${isFreelancer || isCeo ? "" : `<button class="btn secondary" id="qaLeave">Apply Leave</button>`}
-        ${isCeo ? "" : `<button class="btn secondary" id="qaAdvance">Request Advance Salary</button>`}
+        ${isFreelancer ? "" : `<button class="btn secondary" id="qaLeave">Apply Leave</button>`}
+        <button class="btn secondary" id="qaAdvance">Request Advance Salary</button>
         ${isAdmin || isFreelancer ? "" : `<button class="btn secondary" id="qaOvertime">Log Overtime</button>`}
       </div>
     `;
@@ -129,8 +127,98 @@ const PageDashboard = (() => {
     document.getElementById("breakBtn")?.addEventListener("click", () => markBreak(onBreak ? "end" : "start"));
     document.getElementById("qaReport")?.addEventListener("click", () => (window.location.hash = "#work-reports"));
     document.getElementById("qaLeave")?.addEventListener("click", openApplyLeaveModal);
-    document.getElementById("qaAdvance")?.addEventListener("click", openRequestAdvanceModal);
+    document.getElementById("qaAdvance").addEventListener("click", openRequestAdvanceModal);
     document.getElementById("qaOvertime")?.addEventListener("click", openLogOvertimeModal);
+  }
+
+  /** CEO's master dashboard — company-wide figures (team & attendance,
+   *  payroll & financials, the approvals queue with Admin-submitted
+   *  requests called out since only the CEO can decide those, and a
+   *  conduct pulse-check), not "my own" numbers like everyone else's
+   *  Dashboard shows. */
+  async function renderCeoOverview(mount) {
+    const res = await Api.call("getCeoOverview");
+    if (!res.ok) { mount.innerHTML = errorState(res.error); return; }
+    const { announcements, team, payroll, approvals, conduct } = res;
+
+    const nameListHtml = (names, emptyText) =>
+      names.length ? names.map(n => Utils.escapeHtml(n)).join(", ") : emptyText;
+
+    mount.innerHTML = `
+      <div class="grid grid-4">
+        ${Card.stat({ label: "Total Staff", value: String(team.totalStaff), sub: "Employees + Admins" })}
+        ${Card.stat({ label: "Present Today", value: `${team.presentToday}/${team.attendanceEligibleTotal}`, sub: "Freelancers excluded — no attendance tracking" })}
+        ${Card.stat({ label: "Pending Approvals", value: String(approvals.pendingTotal), sub: "Leave / advance / overtime, company-wide" })}
+        ${Card.stat({ label: "Awaiting Your Approval", value: String(approvals.awaitingYourApproval.length), sub: "Submitted by an Admin — only you can decide" })}
+      </div>
+
+      <div class="section-head"><h2>Team &amp; Attendance</h2></div>
+      <div class="grid grid-4">
+        ${Card.stat({ label: "Present", value: String(team.presentToday) })}
+        ${Card.stat({ label: "Absent", value: String(team.absentToday), sub: nameListHtml(team.absentNames, "") })}
+        ${Card.stat({ label: "On Leave", value: String(team.onLeaveToday), sub: nameListHtml(team.onLeaveNames, "") })}
+        ${Card.stat({ label: "Not Marked", value: String(team.notMarkedToday) })}
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div class="card-label">Headcount by Employment Type</div>
+        <div class="btn-row" style="margin-top:10px">
+          ${Object.keys(team.byType).map(t => Badge.render(`${t}: ${team.byType[t]}`, "neutral")).join("")}
+        </div>
+      </div>
+
+      <div class="section-head"><h2>Payroll &amp; Financials</h2></div>
+      <div class="grid grid-3">
+        ${Card.stat({ label: "Total Monthly Payroll", value: Utils.currency(payroll.totalMonthlyPayroll), sub: "Sum of everyone's Monthly Salary" })}
+        ${Card.stat({ label: "Advances Outstanding", value: Utils.currency(payroll.totalAdvancesOutstanding), sub: "Across all staff" })}
+        ${Card.stat({ label: "Not Closed Out This Month", value: String(payroll.notClosedOutNames.length), sub: nameListHtml(payroll.notClosedOutNames, "Everyone's closed out") })}
+      </div>
+
+      <div class="section-head"><h2>Approvals Queue</h2></div>
+      ${approvals.awaitingYourApproval.length ? `
+        <div class="approval-list">
+          ${approvals.awaitingYourApproval.map(r => `
+            <div class="approval-row">
+              <div><strong>${Utils.escapeHtml(r.name)}</strong> — ${Utils.escapeHtml(r.kind)}</div>
+              <div class="card-sub">${Utils.formatDate(r.date)}</div>
+            </div>`).join("")}
+        </div>
+        <button class="btn secondary" id="qaReviewApprovals" style="margin-top:10px">Review in Employees</button>
+      ` : `<div class="card-sub">Nothing from an Admin awaiting your approval right now.</div>`}
+
+      <div class="section-head"><h2>Conduct Pulse-Check</h2></div>
+      <div class="grid grid-2" style="align-items:start">
+        <div class="card">
+          <div class="card-label">Nearing the Warning Limit</div>
+          ${conduct.nearWarningLimit.length ? `
+            <div class="btn-row" style="margin-top:10px">
+              ${conduct.nearWarningLimit.map(w => Badge.render(`${Utils.escapeHtml(w.name)}: ${w.count} of 3`, "danger")).join("")}
+            </div>` : `<div class="card-sub" style="margin-top:6px">No one is close to the 3-warning limit.</div>`}
+        </div>
+        <div>
+          ${DataTable.render(
+            [{ key: "type", label: "Type" }, { key: "name", label: "Employee" }, { key: "subject", label: "Subject" }, { key: "date", label: "Date" }],
+            conduct.recentLetters.map(l => ({
+              type: Badge.render(l.type, l.type === "Warning" ? "danger" : "success"),
+              name: Utils.escapeHtml(l.name),
+              subject: Utils.escapeHtml(l.subject),
+              date: Utils.formatDate(l.date)
+            })),
+            { emptyText: "No warning or appreciation letters issued yet." }
+          )}
+        </div>
+      </div>
+
+      <div class="section-head"><h2>Company Announcements</h2></div>
+      <div class="announce-list">
+        ${announcements.map(a => `
+          <div class="announce-item">
+            <div class="a-title">${Utils.escapeHtml(a.title)}</div>
+            <div class="a-date">${Utils.formatDate(a.date)}</div>
+          </div>`).join("")}
+      </div>
+    `;
+
+    document.getElementById("qaReviewApprovals")?.addEventListener("click", () => (window.location.hash = "#employees"));
   }
 
   function openApplyLeaveModal() {
