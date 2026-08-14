@@ -139,7 +139,7 @@ const PageDashboard = (() => {
   async function renderCeoOverview(mount) {
     const res = await Api.call("getCeoOverview");
     if (!res.ok) { mount.innerHTML = errorState(res.error); return; }
-    const { announcements, team, payroll, approvals, conduct, anomalies } = res;
+    const { announcements, team, payroll, approvals, conduct, anomalies, recentActivity } = res;
 
     const nameListHtml = (names, emptyText) =>
       names.length ? names.map(n => Utils.escapeHtml(n)).join(", ") : emptyText;
@@ -285,6 +285,19 @@ const PageDashboard = (() => {
         </div>
       </div>` : ""}
 
+      <div class="section-head"><h2>Recent Activity</h2></div>
+      <div id="recentActivityHost">
+        ${DataTable.render(
+          [{ key: "when", label: "When" }, { key: "actor", label: "By" }, { key: "action", label: "Action" }, { key: "target", label: "Employee" }, { key: "details", label: "Details" }],
+          recentActivity.map(r => ({
+            when: r.timestamp, actor: Utils.escapeHtml(r.actorName), action: Utils.escapeHtml(r.action),
+            target: Utils.escapeHtml(r.targetName), details: Utils.escapeHtml(r.details)
+          })),
+          { emptyText: "No activity logged yet." }
+        )}
+      </div>
+      <button class="btn secondary sm" id="viewFullLogBtn" style="margin-top:10px">View Full Log</button>
+
       <div class="section-head"><h2>Company Announcements</h2></div>
       <div class="announce-list">
         ${announcements.map(a => `
@@ -330,6 +343,37 @@ const PageDashboard = (() => {
         window.location.hash = `#employees?open=drawer&uid=${el.dataset.openDrawer}`;
       });
     });
+    document.getElementById("viewFullLogBtn").addEventListener("click", openActivityLogModal);
+  }
+
+  /** Everything logActivity_ (Code.gs) has ever recorded — the
+   *  dashboard's own "Recent Activity" table only shows the last few,
+   *  this is the searchable full accountability trail. Filtering is
+   *  client-side over the already-fetched list (fine at this team's
+   *  action volume — see getActivityLog_'s own comment) rather than a
+   *  server round-trip per keystroke. */
+  async function openActivityLogModal() {
+    const res = await Api.call("getActivityLog");
+    if (!res.ok) { Toast.show(res.error || "Could not load activity log", "error"); return; }
+    const log = res.log;
+    const renderTable = term => DataTable.render(
+      [{ key: "when", label: "When" }, { key: "actor", label: "By" }, { key: "action", label: "Action" }, { key: "target", label: "Employee" }, { key: "details", label: "Details" }],
+      log
+        .filter(r => !term || `${r.actorName} ${r.action} ${r.targetName} ${r.details}`.toLowerCase().includes(term.toLowerCase()))
+        .map(r => ({
+          when: r.timestamp, actor: Utils.escapeHtml(r.actorName), action: Utils.escapeHtml(r.action),
+          target: Utils.escapeHtml(r.targetName), details: Utils.escapeHtml(r.details)
+        })),
+      { emptyText: "No matching activity." }
+    );
+    const bodyHtml = `
+      <input class="input" id="activityLogSearch" placeholder="Search activity..." style="margin-bottom:10px" />
+      <div id="activityLogTableHost">${renderTable("")}</div>
+    `;
+    const overlay = Modal.open({ title: `Activity Log (${log.length})`, bodyHtml, xl: true });
+    overlay.querySelector("#activityLogSearch").addEventListener("input", Utils.debounce(e => {
+      overlay.querySelector("#activityLogTableHost").innerHTML = renderTable(e.target.value);
+    }, 150));
   }
 
   /** Lets the CEO close out each not-yet-closed-out employee straight
