@@ -143,16 +143,6 @@ const PageDashboard = (() => {
 
     const nameListHtml = (names, emptyText) =>
       names.length ? names.map(n => Utils.escapeHtml(n)).join(", ") : emptyText;
-    // "Not Closed Out This Month" reads as an alarm if it just lists
-    // everyone — which it will, for most of the month, since Close Out
-    // Month is normally a once-a-month, end-of-month action. Cap the
-    // names shown so it doesn't look like a growing problem all month.
-    const truncatedNameListHtml = (names, emptyText, max = 3) => {
-      if (!names.length) return emptyText;
-      const shown = names.slice(0, max).map(n => Utils.escapeHtml(n)).join(", ");
-      const rest = names.length - max;
-      return rest > 0 ? `${shown}, and ${rest} more` : shown;
-    };
 
     // One-line skim of everything that needs attention, so a quiet day
     // reads as a quiet day instead of making the CEO scan every card
@@ -170,9 +160,8 @@ const PageDashboard = (() => {
       : `All clear — nothing needs your attention right now. ${payrollLine}.`;
 
     // A nudge only in the last few days of the month — "not closed out"
-    // is the normal state for most of the month (see
-    // truncatedNameListHtml above), so this only fires when it's
-    // actually time to act on it.
+    // is the normal state for most of the month, so this only fires
+    // when it's actually time to act on it.
     const today = new Date();
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     const showCloseOutReminder = today.getDate() >= daysInMonth - 4 && payroll.notClosedOut.length > 0;
@@ -207,13 +196,11 @@ const PageDashboard = (() => {
         <div class="card clickable" id="payrollCard" style="cursor:pointer">
           <div class="card-label">Total Monthly Payroll</div>
           <div class="card-value">${Utils.currency(payroll.totalEarnedTillDate)} <span style="font-size:var(--fs-md);font-weight:400;color:var(--muted)">/ ${Utils.currency(payroll.totalMonthlyPayroll)}</span></div>
-          <div class="card-sub">Earned so far / committed this month · click for breakdown</div>
         </div>
-        ${Card.stat({ label: "Advances Outstanding", value: Utils.currency(payroll.totalAdvancesOutstanding), sub: "Across all staff" })}
+        ${Card.stat({ label: "Advances Outstanding", value: Utils.currency(payroll.totalAdvancesOutstanding) })}
         <div class="card clickable" id="notClosedOutCard" style="cursor:pointer">
           <div class="card-label">Not Closed Out This Month</div>
           <div class="card-value">${payroll.notClosedOut.length}</div>
-          <div class="card-sub">${truncatedNameListHtml(payroll.notClosedOut.map(p => p.name), "Everyone's closed out")}${payroll.notClosedOut.length ? " · click to close out" : ""}</div>
         </div>
       </div>
 
