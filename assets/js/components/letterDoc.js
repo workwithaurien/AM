@@ -9,6 +9,16 @@
 const LetterDoc = (() => {
   const ACCENT = "#002147"; // matches theme-color in index.html/app.html
 
+  // The only three people who can sign a Warning/Appreciation letter —
+  // hardcoded per the brief, not sheet-driven. employees.js's "Issued
+  // By" dropdown reads this same list, so there's exactly one place to
+  // update if the set of signatories ever changes.
+  const SIGNATORIES = [
+    { name: "Rohit Shah", title: "Founder & CEO", company: "Aurien Media" },
+    { name: "Yashvi Joshi", title: "CEO's EA", company: "Aurien Media" },
+    { name: "Tarun Sinha", title: "Chief Operating Officer", company: "Aurien Media" }
+  ];
+
   /** Opens window.open() synchronously (inside the click handler) so
    *  popup blockers don't kill it, then fills it in once Settings
    *  (for the letterhead's company name) comes back. */
@@ -41,6 +51,16 @@ const LetterDoc = (() => {
 
   function esc(s) {
     return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  /** Name/Title/Company signature block for a known signatory; falls
+   *  back to just the raw name for a letter issued before this dropdown
+   *  existed (or by someone no longer in SIGNATORIES), same
+   *  degrade-gracefully approach used elsewhere in this app. */
+  function signatureHtml(issuedBy) {
+    const s = SIGNATORIES.find(x => x.name === issuedBy);
+    if (!s) return `${esc(issuedBy)}<br/>Issued by`;
+    return `<span class="sig-name">${esc(s.name)}</span><br/><span class="sig-role">${esc(s.title)}</span><br/><span class="sig-company">${esc(s.company)}</span>`;
   }
 
   function html(letter, employee, companyName) {
@@ -78,7 +98,9 @@ const LetterDoc = (() => {
   .subject { font-weight: 700; margin-bottom: 20px; font-size: 15px; }
   .body p { font-size: 15px; line-height: 1.75; margin: 0 0 14px; }
   .sign-block { margin-top: 56px; font-family: -apple-system, Segoe UI, sans-serif; font-size: 13.5px; }
-  .sign-block .line { width: 220px; border-top: 1px solid #999; margin-top: 46px; padding-top: 6px; color: #444; }
+  .sign-block .line { width: 240px; border-top: 1px solid #999; margin-top: 46px; padding-top: 8px; }
+  .sign-block .sig-name { font-weight: 700; color: #1a1a1a; font-size: 14px; }
+  .sign-block .sig-role, .sign-block .sig-company { color: #666; }
   @media print {
     body { background: #fff; }
     .toolbar { display: none; }
@@ -102,7 +124,7 @@ const LetterDoc = (() => {
     <div class="subject">Subject: ${esc(letter.subject)}</div>
     <div class="body">${bodyHtml}</div>
     <div class="sign-block">
-      <div class="line">${esc(letter.issuedBy)}<br/>Issued by</div>
+      <div class="line">${signatureHtml(letter.issuedBy)}</div>
     </div>
   </div>
 </body>
@@ -120,5 +142,5 @@ const LetterDoc = (() => {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   }
 
-  return { open };
+  return { open, SIGNATORIES };
 })();

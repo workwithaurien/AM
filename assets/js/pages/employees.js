@@ -286,6 +286,10 @@ const PageEmployees = (() => {
             <input class="input" type="text" name="subject" placeholder="${type === "Warning" ? "e.g. Repeated late arrival" : "e.g. Outstanding work on the DeoDap campaign"}" required /></div>
           <div class="field"><label>Body</label>
             <textarea class="input" name="message" rows="6" placeholder="Full letter text..." required></textarea></div>
+          <div class="field"><label>Issued By</label>
+            <select class="input" name="issuedBy" required>
+              ${LetterDoc.SIGNATORIES.map(s => `<option value="${Utils.escapeHtml(s.name)}">${Utils.escapeHtml(s.name)} — ${Utils.escapeHtml(s.title)}</option>`).join("")}
+            </select></div>
         </form>`
       : `<form id="letterForm">
           <div class="field"><label>Message</label>
@@ -301,15 +305,15 @@ const PageEmployees = (() => {
       const fd = new FormData(e.target);
       const subject = isFormal ? fd.get("subject") : "";
       const message = fd.get("message");
-      const res = await Api.call("issueLetter", { uid: emp.uid, type, subject, message });
+      const issuedBy = isFormal ? fd.get("issuedBy") : "";
+      const res = await Api.call("issueLetter", { uid: emp.uid, type, subject, message, issuedBy });
       if (res.ok) {
         Toast.show(`${type} issued`, "success");
         Modal.close();
         if (isFormal) {
           LetterDoc.open({
-            type, subject, message,
+            type, subject, message, issuedBy,
             date: Utils.todayIso(),
-            issuedBy: Auth.getUser().name,
             warningNumber: res.warningNumber || ""
           }, emp);
           // The drawer's Letters tab (and pending counts) were fetched
