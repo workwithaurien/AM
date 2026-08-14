@@ -37,14 +37,14 @@ const Sidebar = (() => {
   };
 
   const NAV = [
-    { id: "dashboard",     label: "Dashboard",    roles: ["employee", "admin"] },
-    { id: "work-reports",  label: "Work Reports",  roles: ["employee", "admin"] },
-    { id: "salary",        label: "Salary",        roles: ["employee", "admin"] },
-    { id: "drive",         label: "Drive",         roles: ["employee", "admin"] },
-    { id: "attendance",    label: "Attendance",    roles: ["employee", "admin"] },
-    { id: "employees",     label: "Employees",     roles: ["admin"] },
-    { id: "profile",       label: "Profile",       roles: ["employee", "admin"] },
-    { id: "settings",      label: "Settings",      roles: ["admin"] }
+    { id: "dashboard",     label: "Dashboard",    roles: ["employee", "admin", "ceo"] },
+    { id: "work-reports",  label: "Work Reports",  roles: ["employee", "admin", "ceo"] },
+    { id: "salary",        label: "Salary",        roles: ["employee", "admin", "ceo"] },
+    { id: "drive",         label: "Drive",         roles: ["employee", "admin", "ceo"] },
+    { id: "attendance",    label: "Attendance",    roles: ["employee", "admin", "ceo"] },
+    { id: "employees",     label: "Employees",     roles: ["admin", "ceo"] },
+    { id: "profile",       label: "Profile",       roles: ["employee", "admin", "ceo"] },
+    { id: "settings",      label: "Settings",      roles: ["admin", "ceo"] }
   ];
 
   function render() {

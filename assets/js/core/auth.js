@@ -29,7 +29,12 @@ const Auth = (() => {
   function getUser() { return getSession()?.user || null; }
   function getToken() { return getSession()?.token || null; }
   function isLoggedIn() { return !!getSession(); }
-  function isAdmin() { return getUser()?.role === "admin"; }
+  // CEO gets every Admin capability (Employees page, all approvals,
+  // Settings) plus the exclusive right to approve/reject/delete a
+  // request an Admin submitted — see isCeo() and employees.js's
+  // approval modals for that extra check.
+  function isAdmin() { return getUser()?.role === "admin" || getUser()?.role === "ceo"; }
+  function isCeo() { return getUser()?.role === "ceo"; }
   function logout() {
     sessionStorage.removeItem(KEY);
     localStorage.removeItem(KEY);
@@ -47,5 +52,5 @@ const Auth = (() => {
     return true;
   }
 
-  return { setSession, getUser, getToken, isLoggedIn, isAdmin, logout, requireAuth };
+  return { setSession, getUser, getToken, isLoggedIn, isAdmin, isCeo, logout, requireAuth };
 })();

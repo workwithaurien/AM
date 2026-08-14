@@ -21,7 +21,7 @@ const PageWorkReports = (() => {
   let employeeFilter = "";
 
   async function render(mount) {
-    const isAdmin = Auth.getUser().role === "admin";
+    const isAdmin = Auth.isAdmin();
     const res = await Api.call("getWorkReports");
     if (!res.ok) { mount.innerHTML = `<div class="empty-state">${res.error}</div>`; return; }
     // Newest first, so the most recent reports are easiest to find.

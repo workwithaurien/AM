@@ -8,7 +8,7 @@ const PageDashboard = (() => {
     if (!res.ok) { mount.innerHTML = errorState(res.error); return; }
 
     const { announcements, salary, reportSubmittedToday, todayAttendance, todaysTask } = res;
-    const isAdmin = user.role === "admin";
+    const isAdmin = Auth.isAdmin();
     const loggedIn = !!todayAttendance.loginTime;
     const loggedOut = !!todayAttendance.logoutTime;
     // Older deployed backends (before upgradeEMS) won't send Break Start/

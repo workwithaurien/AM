@@ -195,6 +195,26 @@ const PageEmployees = (() => {
     return parts.join(" · ");
   }
 
+  /** The right-hand actions area for one Leave/Advance/Overtime approval
+   *  row. A request an Admin submitted can only be approved, rejected,
+   *  or deleted by the CEO (see canDecideRequestFrom_ in Code.gs) — a
+   *  regular admin viewer gets a locked badge instead of buttons that
+   *  would just fail server-side, so it reads as "not yours to decide"
+   *  rather than a broken action. */
+  function approvalActionsHtml(item) {
+    const locked = item.requiresCeoApproval && !Auth.isCeo();
+    if (locked) {
+      return item.status === "Pending"
+        ? Badge.render("Awaiting CEO", "neutral")
+        : Badge.render(item.status, item.status === "Approved" ? "success" : "danger");
+    }
+    return `
+      ${item.status === "Pending"
+        ? `<button class="btn secondary sm" data-approve="${item.id}">Approve</button><button class="btn danger sm" data-reject="${item.id}">Reject</button>`
+        : Badge.render(item.status, item.status === "Approved" ? "success" : "danger")}
+      <button class="btn danger sm" data-delete="${item.id}" title="Permanently delete this request">Delete</button>`;
+  }
+
   const LETTER_TYPES = { warning: "Warning", note: "Note", appreciation: "Appreciation" };
 
   /** Shared config for openApprovalsModal's three kinds — everything
@@ -273,12 +293,7 @@ const PageEmployees = (() => {
           <div>${cfg.rowLabel(item)}</div>
           <div class="card-sub">${Utils.escapeHtml(item.reason || "No reason given")}</div>
         </div>
-        <div class="approval-actions">
-          ${item.status === "Pending"
-            ? `<button class="btn secondary sm" data-approve="${item.id}">Approve</button><button class="btn danger sm" data-reject="${item.id}">Reject</button>`
-            : Badge.render(item.status, item.status === "Approved" ? "success" : "danger")}
-          <button class="btn danger sm" data-delete="${item.id}" title="Permanently delete this request">Delete</button>
-        </div>
+        <div class="approval-actions">${approvalActionsHtml(item)}</div>
       </div>`;
 
     const bodyHtml = items.length
@@ -328,12 +343,7 @@ const PageEmployees = (() => {
           <div><strong>${Utils.escapeHtml(item.name)}</strong> — ${Utils.escapeHtml(item.type)} (${item.duration}) — ${Utils.formatDate(item.from)} to ${Utils.formatDate(item.to)}</div>
           <div class="card-sub">${Utils.escapeHtml(item.reason || "No reason given")}</div>
         </div>
-        <div class="approval-actions">
-          ${item.status === "Pending"
-            ? `<button class="btn secondary sm" data-approve="${item.id}">Approve</button><button class="btn danger sm" data-reject="${item.id}">Reject</button>`
-            : Badge.render(item.status, item.status === "Approved" ? "success" : "danger")}
-          <button class="btn danger sm" data-delete="${item.id}" title="Permanently delete this leave request">Delete</button>
-        </div>
+        <div class="approval-actions">${approvalActionsHtml(item)}</div>
       </div>`;
 
     const bodyHtml = sorted.length
@@ -377,12 +387,7 @@ const PageEmployees = (() => {
           <div><strong>${Utils.escapeHtml(item.name)}</strong> — ${Utils.currency(item.amount)}</div>
           <div class="card-sub">${Utils.escapeHtml(item.reason || "No reason given")}</div>
         </div>
-        <div class="approval-actions">
-          ${item.status === "Pending"
-            ? `<button class="btn secondary sm" data-approve="${item.id}">Approve</button><button class="btn danger sm" data-reject="${item.id}">Reject</button>`
-            : Badge.render(item.status, item.status === "Approved" ? "success" : "danger")}
-          <button class="btn danger sm" data-delete="${item.id}" title="Permanently delete this advance request">Delete</button>
-        </div>
+        <div class="approval-actions">${approvalActionsHtml(item)}</div>
       </div>`;
 
     const bodyHtml = sorted.length
@@ -427,12 +432,7 @@ const PageEmployees = (() => {
           <div><strong>${Utils.escapeHtml(item.name)}</strong> — ${item.value} day${item.value === 1 ? "" : "s"} extra — ${Utils.formatDate(item.date)}</div>
           <div class="card-sub">${Utils.escapeHtml(item.reason || "No reason given")}</div>
         </div>
-        <div class="approval-actions">
-          ${item.status === "Pending"
-            ? `<button class="btn secondary sm" data-approve="${item.id}">Approve</button><button class="btn danger sm" data-reject="${item.id}">Reject</button>`
-            : Badge.render(item.status, item.status === "Approved" ? "success" : "danger")}
-          <button class="btn danger sm" data-delete="${item.id}" title="Permanently delete this overtime request">Delete</button>
-        </div>
+        <div class="approval-actions">${approvalActionsHtml(item)}</div>
       </div>`;
 
     const bodyHtml = sorted.length
@@ -773,7 +773,11 @@ const PageEmployees = (() => {
         </div>
         <div class="grid grid-2">
           <div class="field"><label>Role</label>
-            <select class="input" name="role"><option value="employee">Employee</option><option value="admin">Admin</option></select></div>
+            <select class="input" name="role">
+              <option value="employee">Employee</option>
+              <option value="admin">Admin</option>
+              ${Auth.isCeo() ? `<option value="ceo">CEO</option>` : ""}
+            </select></div>
           <div class="field"><label>Employment Type</label>
             <select class="input" name="employmentType">${EMPLOYMENT_TYPES.map(t => `<option value="${t}">${t}</option>`).join("")}</select></div>
         </div>

@@ -31,7 +31,7 @@ const Navbar = (() => {
           <button class="icon-btn" id="notifBtn" title="Notifications">${BELL_SVG}<span class="notif-dot" id="notifDot"></span></button>
           <div class="notif-panel" id="notifPanel" hidden></div>
         </div>
-        ${user.role === "admin" ? `<button class="icon-btn" id="gearBtn" title="Settings">${GEAR_SVG}</button>` : ""}
+        ${Auth.isAdmin() ? `<button class="icon-btn" id="gearBtn" title="Settings">${GEAR_SVG}</button>` : ""}
         <div class="icon-btn avatar" id="avatarBtn" title="${Utils.escapeHtml(user.name)} — view profile">
           ${Utils.avatarInner(user)}
         </div>
@@ -66,7 +66,6 @@ const Navbar = (() => {
   async function loadNotifications() {
     const res = await Api.call("getDashboard");
     if (!res.ok) return;
-    const user = Auth.getUser();
 
     // Announcements has no ID column, but title+date is unique enough for
     // a broadcast list like this.
@@ -77,9 +76,9 @@ const Navbar = (() => {
       route: null
     }));
 
-    // Admin-only: new employee requests show up as notifications too, not
-    // just the passive "Pending Approvals" count on the dashboard.
-    if (user.role === "admin") {
+    // Admin/CEO-only: new employee requests show up as notifications too,
+    // not just the passive "Pending Approvals" count on the dashboard.
+    if (Auth.isAdmin()) {
       (res.pendingRequests || []).forEach(r => {
         items.push({
           key: r.key,

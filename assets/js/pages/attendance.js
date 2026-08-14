@@ -11,7 +11,6 @@ const PageAttendance = (() => {
   let viewYear = new Date().getFullYear();
 
   async function render(mount) {
-    const user = Auth.getUser();
     const [holRes, attRes] = await Promise.all([
       fetchHolidays(),
       Api.call("getAttendanceCalendar")
@@ -23,9 +22,9 @@ const PageAttendance = (() => {
     const overtime = attRes.overtime || [];
     const paidLeave = attRes.paidLeave || { eligible: false, allowance: 0, taken: 0, used: 0, remaining: 0, cashoutDays: 0 };
 
-    mount.innerHTML = user.role === "admin" ? adminView(holidays, attendance, overtime) : employeeView(holidays, attendance, overtime, paidLeave);
+    mount.innerHTML = Auth.isAdmin() ? adminView(holidays, attendance, overtime) : employeeView(holidays, attendance, overtime, paidLeave);
 
-    if (user.role === "admin") {
+    if (Auth.isAdmin()) {
       document.getElementById("addHolidayBtn").addEventListener("click", () => openHolidayModal(null));
       mount.querySelectorAll("[data-edit-holiday]").forEach(btn => {
         btn.addEventListener("click", () => openHolidayModal(holidays.find(h => h.id === btn.dataset.editHoliday)));

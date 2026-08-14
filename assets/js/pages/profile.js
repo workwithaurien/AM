@@ -45,7 +45,7 @@ const PageProfile = (() => {
           <div class="profile-avatar">${Utils.avatarInner(user)}</div>
           <div>
             <div class="profile-name">${Utils.escapeHtml(user.name)}</div>
-            <div class="profile-role">${user.role === "admin" ? "Administrator" : "Employee"} &middot; ID: ${Utils.escapeHtml(user.uid)}</div>
+            <div class="profile-role">${user.role === "ceo" ? "CEO" : user.role === "admin" ? "Administrator" : "Employee"} &middot; ID: ${Utils.escapeHtml(user.uid)}</div>
           </div>
         </div>
         <div class="profile-grid">
