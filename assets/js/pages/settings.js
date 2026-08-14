@@ -14,7 +14,7 @@ const PageSettings = (() => {
       </div>
       <div class="settings-block card">
         <div class="card-title">User Roles &amp; Permissions</div>
-        <div class="card-sub">Manage who has Admin vs Employee access from the Employees page — open an employee's drawer to change their Employment Type, or Disable/Enable their login.</div>
+        <div class="card-sub">Role (Employee/Admin/CEO) is set when an account is added and can't be changed in-app afterward — edit the Role cell directly in the Users sheet to promote or demote someone. Employment Type (Full Time/Part Time/Intern/Freelancer) and Disable/Enable login can both be changed anytime from an employee's drawer on the Employees page.</div>
       </div>
       <div class="settings-block card">
         <div class="card-title">Drive Link Management</div>
