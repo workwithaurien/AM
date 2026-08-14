@@ -73,22 +73,34 @@ const Navbar = (() => {
       key: `ann_${a.title}__${a.date}`,
       title: a.title,
       sub: Utils.formatDate(a.date),
-      route: null
+      route: null,
+      priority: 0
     }));
 
     // Admin/CEO-only: new employee requests show up as notifications too,
     // not just the passive "Pending Approvals" count on the dashboard.
+    // For a CEO viewer, one submitted by an Admin is the one thing only
+    // they can decide (see canDecideRequestFrom_) — called out with a
+    // distinct title and deep-linked straight to the right approval
+    // modal (see employees.js).
     if (Auth.isAdmin()) {
-      (res.pendingRequests || []).forEach(r => {
-        items.push({
+      const isCeo = Auth.isCeo();
+      items.push(...(res.pendingRequests || []).map(r => {
+        const forCeo = isCeo && r.fromAdmin;
+        return {
           key: r.key,
-          title: `${r.kind} request — ${r.name}`,
+          title: forCeo ? `Needs your approval — ${r.kind}, ${r.name}` : `${r.kind} request — ${r.name}`,
           sub: `Applied ${Utils.formatDate(r.date)} · review in Employees`,
-          route: "employees"
-        });
-      });
+          route: forCeo ? `employees?open=${r.kind.toLowerCase()}` : "employees",
+          priority: forCeo ? 1 : 0
+        };
+      }));
     }
 
+    // Sorted so the one thing only the CEO can decide always surfaces
+    // first, ahead of ordinary announcements/requests — not just
+    // ordered relative to other pending requests.
+    items.sort((a, b) => b.priority - a.priority);
     notifItems = items;
     renderPanel();
     updateDot();

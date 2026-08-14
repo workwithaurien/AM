@@ -175,16 +175,24 @@ const PageAttendance = (() => {
       name, idx,
       items: holidays.filter(h => new Date(h.date + "T00:00:00").getMonth() === idx)
     }));
+    // CEO doesn't clock in/out (see dashboard.js) so Present/Absent
+    // Days (Year) here would always read 0 — just noise. Holiday
+    // management is still genuinely useful, so that stays.
+    const statsHtml = Auth.isCeo()
+      ? `<div class="grid" style="margin-bottom:10px">
+          ${Card.stat({ label: "Holidays (Year)", value: yearCounts.holidays })}
+        </div>`
+      : `<div class="grid grid-3" style="margin-bottom:10px">
+          ${Card.stat({ label: "Present Days (Year)", value: yearCounts.present, sub: overtimeSub_(yearCounts.overtimeDays) })}
+          ${Card.stat({ label: "Absent Days (Year)", value: yearCounts.absent })}
+          ${Card.stat({ label: "Holidays (Year)", value: yearCounts.holidays })}
+        </div>`;
     return `
       <div class="toolbar">
         <div class="grow"><strong>Full Year — ${year}</strong> <span class="card-sub">Admins see all 12 months; employees only see the current month.</span></div>
         <button class="btn" id="addHolidayBtn">+ Add Holiday</button>
       </div>
-      <div class="grid grid-3" style="margin-bottom:10px">
-        ${Card.stat({ label: "Present Days (Year)", value: yearCounts.present, sub: overtimeSub_(yearCounts.overtimeDays) })}
-        ${Card.stat({ label: "Absent Days (Year)", value: yearCounts.absent })}
-        ${Card.stat({ label: "Holidays (Year)", value: yearCounts.holidays })}
-      </div>
+      ${statsHtml}
       ${legendHtml()}
       <div class="year-groups">
         ${groups.map(g => `

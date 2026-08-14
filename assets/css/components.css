@@ -141,6 +141,7 @@ table.data tbody tr.clickable:hover{background:var(--surface-soft);cursor:pointe
 /* approval list (Approve Leave / Approve Advance modals) */
 .approval-list{display:flex;flex-direction:column;gap:10px;}
 .approval-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--r-md);}
+.approval-row.clickable:hover{background:var(--surface-soft);border-color:var(--accent);}
 .approval-actions{display:flex;gap:6px;flex:none;}
 @media (max-width: 480px){
   .approval-row{flex-direction:column;align-items:stretch;}

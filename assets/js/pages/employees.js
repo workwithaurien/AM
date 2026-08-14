@@ -36,6 +36,24 @@ const PageEmployees = (() => {
     document.getElementById("baAttendance").addEventListener("click", openAttendanceViewModal);
 
     renderGrid("");
+    openDeepLinkedApprovalModal();
+  }
+
+  /** The CEO dashboard's "Awaiting Your Approval" rows deep-link here as
+   *  "#employees?open=leave|advance|overtime" (see dashboard.js) so a
+   *  click jumps straight to the right approval modal instead of
+   *  landing on the page and making the CEO go find it themselves.
+   *  Cleans the query back off the hash afterward (via replaceState, so
+   *  it doesn't re-trigger the router) so refreshing the page later
+   *  doesn't reopen the modal. */
+  function openDeepLinkedApprovalModal() {
+    const query = new URLSearchParams(location.hash.split("?")[1] || "");
+    const open = query.get("open");
+    if (!open) return;
+    history.replaceState(null, "", "#employees");
+    if (open === "leave") openApproveLeavesModal();
+    else if (open === "advance") openApproveAdvancesModal();
+    else if (open === "overtime") openApproveOvertimeModal();
   }
 
   function renderGrid(term) {

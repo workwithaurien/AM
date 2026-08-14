@@ -15,8 +15,13 @@ const Router = (() => {
     settings:     { title: "Settings",     page: () => PageSettings,    adminOnly: true  }
   };
 
+  // A hash can carry a query string after the route id (e.g.
+  // "#employees?open=leave", used by the CEO dashboard's approvals
+  // queue to deep-link into a specific approval modal) — only the part
+  // before "?" is ever matched against `routes`; each page's render()
+  // is free to read the rest off location.hash itself if it cares.
   function currentRoute() {
-    const hash = (window.location.hash || "#dashboard").replace("#", "");
+    const hash = (window.location.hash || "#dashboard").replace("#", "").split("?")[0];
     return routes[hash] ? hash : "dashboard";
   }
 

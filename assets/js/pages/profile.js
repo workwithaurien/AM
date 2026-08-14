@@ -104,12 +104,13 @@ const PageProfile = (() => {
               overtimeRows,
               { emptyText: "No overtime logged yet." }
             )}
+            ${Auth.isCeo() ? "" : `
             <div class="section-head"><h2>Attendance History</h2></div>
             ${DataTable.render(
               [{ key: "date", label: "Date" }, { key: "status", label: "Status" }, { key: "hours", label: "Hours" }],
               attendanceRows,
               { emptyText: "No attendance recorded yet." }
-            )}
+            )}`}
           </div>
         </div>
       </div>

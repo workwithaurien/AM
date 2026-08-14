@@ -143,6 +143,16 @@ const PageDashboard = (() => {
 
     const nameListHtml = (names, emptyText) =>
       names.length ? names.map(n => Utils.escapeHtml(n)).join(", ") : emptyText;
+    // "Not Closed Out This Month" reads as an alarm if it just lists
+    // everyone — which it will, for most of the month, since Close Out
+    // Month is normally a once-a-month, end-of-month action. Cap the
+    // names shown so it doesn't look like a growing problem all month.
+    const truncatedNameListHtml = (names, emptyText, max = 5) => {
+      if (!names.length) return emptyText;
+      const shown = names.slice(0, max).map(n => Utils.escapeHtml(n)).join(", ");
+      const rest = names.length - max;
+      return rest > 0 ? `${shown}, and ${rest} more` : shown;
+    };
 
     mount.innerHTML = `
       <div class="grid grid-4">
@@ -170,28 +180,28 @@ const PageDashboard = (() => {
       <div class="grid grid-3">
         ${Card.stat({ label: "Total Monthly Payroll", value: Utils.currency(payroll.totalMonthlyPayroll), sub: "Sum of everyone's Monthly Salary" })}
         ${Card.stat({ label: "Advances Outstanding", value: Utils.currency(payroll.totalAdvancesOutstanding), sub: "Across all staff" })}
-        ${Card.stat({ label: "Not Closed Out This Month", value: String(payroll.notClosedOutNames.length), sub: nameListHtml(payroll.notClosedOutNames, "Everyone's closed out") })}
+        ${Card.stat({ label: "Not Closed Out This Month", value: String(payroll.notClosedOutNames.length), sub: truncatedNameListHtml(payroll.notClosedOutNames, "Everyone's closed out") })}
       </div>
 
       <div class="section-head"><h2>Approvals Queue</h2></div>
       ${approvals.awaitingYourApproval.length ? `
         <div class="approval-list">
           ${approvals.awaitingYourApproval.map(r => `
-            <div class="approval-row">
+            <div class="approval-row clickable" data-open-approval="${r.kind.toLowerCase()}" style="cursor:pointer">
               <div><strong>${Utils.escapeHtml(r.name)}</strong> — ${Utils.escapeHtml(r.kind)}</div>
-              <div class="card-sub">${Utils.formatDate(r.date)}</div>
+              <div class="card-sub">${Utils.formatDate(r.date)} · click to review</div>
             </div>`).join("")}
         </div>
-        <button class="btn secondary" id="qaReviewApprovals" style="margin-top:10px">Review in Employees</button>
       ` : `<div class="card-sub">Nothing from an Admin awaiting your approval right now.</div>`}
 
       <div class="section-head"><h2>Conduct Pulse-Check</h2></div>
       <div class="grid grid-2" style="align-items:start">
         <div class="card">
-          <div class="card-label">Nearing the Warning Limit</div>
-          ${conduct.nearWarningLimit.length ? `
+          <div class="card-label">Warning Limit</div>
+          ${conduct.atWarningLimit.length || conduct.nearWarningLimit.length ? `
             <div class="btn-row" style="margin-top:10px">
-              ${conduct.nearWarningLimit.map(w => Badge.render(`${Utils.escapeHtml(w.name)}: ${w.count} of 3`, "danger")).join("")}
+              ${conduct.atWarningLimit.map(w => Badge.render(`${Utils.escapeHtml(w.name)}: at limit (3 of 3)`, "danger")).join("")}
+              ${conduct.nearWarningLimit.map(w => Badge.render(`${Utils.escapeHtml(w.name)}: ${w.count} of 3`, "warning")).join("")}
             </div>` : `<div class="card-sub" style="margin-top:6px">No one is close to the 3-warning limit.</div>`}
         </div>
         <div>
@@ -218,7 +228,14 @@ const PageDashboard = (() => {
       </div>
     `;
 
-    document.getElementById("qaReviewApprovals")?.addEventListener("click", () => (window.location.hash = "#employees"));
+    // Deep-links into the matching "Approve X" modal on the Employees
+    // page (see employees.js's render(), which reads this query param)
+    // instead of just dropping the CEO on the page to go find it themselves.
+    mount.querySelectorAll("[data-open-approval]").forEach(row => {
+      row.addEventListener("click", () => {
+        window.location.hash = `#employees?open=${row.dataset.openApproval}`;
+      });
+    });
   }
 
   function openApplyLeaveModal() {
