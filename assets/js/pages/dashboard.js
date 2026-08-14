@@ -147,7 +147,7 @@ const PageDashboard = (() => {
     // everyone — which it will, for most of the month, since Close Out
     // Month is normally a once-a-month, end-of-month action. Cap the
     // names shown so it doesn't look like a growing problem all month.
-    const truncatedNameListHtml = (names, emptyText, max = 5) => {
+    const truncatedNameListHtml = (names, emptyText, max = 3) => {
       if (!names.length) return emptyText;
       const shown = names.slice(0, max).map(n => Utils.escapeHtml(n)).join(", ");
       const rest = names.length - max;
