@@ -39,7 +39,7 @@ const Sidebar = (() => {
   const NAV = [
     { id: "dashboard",     label: "Dashboard",    roles: ["employee", "admin", "ceo"] },
     { id: "work-reports",  label: "Work Reports",  roles: ["employee", "admin", "ceo"] },
-    { id: "salary",        label: "Salary",        roles: ["employee", "admin", "ceo"] },
+    { id: "salary",        label: "Salary",        roles: ["employee", "admin"] },
     { id: "drive",         label: "Drive",         roles: ["employee", "admin", "ceo"] },
     { id: "attendance",    label: "Attendance",    roles: ["employee", "admin", "ceo"] },
     { id: "employees",     label: "Employees",     roles: ["admin", "ceo"] },
