@@ -142,7 +142,7 @@ const PageEmployees = (() => {
             [{ key: "type", label: "Type" }, { key: "subject", label: "Subject" }, { key: "date", label: "Date" }, { key: "issuedBy", label: "Issued By" }, { key: "action", label: "" }],
             empLetters.map(l => ({
               type: l.type === "Warning"
-                ? `${Badge.render("Warning", "danger")} ${l.warningNumber ? `<span class="card-sub">${l.warningNumber} of 3</span>` : ""}`
+                ? `<span style="white-space:nowrap">${Badge.render("Warning", "danger")} ${l.warningNumber ? `<span class="card-sub">${l.warningNumber} of 3</span>` : ""}</span>`
                 : Badge.render("Appreciation", "success"),
               subject: Utils.escapeHtml(l.subject),
               date: Utils.formatDate(l.date),
