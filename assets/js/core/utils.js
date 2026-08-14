@@ -48,5 +48,24 @@ const Utils = (() => {
     t.innerHTML = html.trim();
     return t.content.firstElementChild;
   }
-  return { currency, formatDate, todayIso, initials, avatarInner, debounce, escapeHtml, el };
+  /** Builds a CSV from an array of row-arrays and triggers a browser
+   *  download — quotes any cell containing a comma/quote/newline
+   *  (escaping inner quotes by doubling them, standard CSV form) so a
+   *  free-text field like a name never breaks the column alignment. */
+  function downloadCsv(filename, rows) {
+    const csv = rows.map(row => row.map(cell => {
+      const s = String(cell ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  return { currency, formatDate, todayIso, initials, avatarInner, debounce, escapeHtml, el, downloadCsv };
 })();

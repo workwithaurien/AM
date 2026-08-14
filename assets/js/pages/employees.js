@@ -42,9 +42,12 @@ const PageEmployees = (() => {
   /** The CEO dashboard's "Awaiting Your Approval" rows deep-link here as
    *  "#employees?open=leave|advance|overtime" (see dashboard.js) so a
    *  click jumps straight to the right approval modal instead of
-   *  landing on the page and making the CEO go find it themselves.
-   *  Cleans the query back off the hash afterward (via replaceState, so
-   *  it doesn't re-trigger the router) so refreshing the page later
+   *  landing on the page and making the CEO go find it themselves. The
+   *  Conduct Pulse-Check's warning-limit badges use the same mechanism
+   *  with "#employees?open=letter&uid=...&type=Warning" to jump
+   *  straight to the Issue Letter form for that employee. Cleans the
+   *  query back off the hash afterward (via replaceState, so it
+   *  doesn't re-trigger the router) so refreshing the page later
    *  doesn't reopen the modal. */
   function openDeepLinkedApprovalModal() {
     const query = new URLSearchParams(location.hash.split("?")[1] || "");
@@ -54,6 +57,13 @@ const PageEmployees = (() => {
     if (open === "leave") openApproveLeavesModal();
     else if (open === "advance") openApproveAdvancesModal();
     else if (open === "overtime") openApproveOvertimeModal();
+    else if (open === "letter") {
+      const emp = all.find(e => e.uid === query.get("uid"));
+      if (emp) openIssueLetterModal(emp, query.get("type") || "Warning");
+    } else if (open === "drawer") {
+      const emp = all.find(e => e.uid === query.get("uid"));
+      if (emp) openDrawer(emp);
+    }
   }
 
   function renderGrid(term) {

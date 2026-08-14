@@ -139,7 +139,7 @@ const PageDashboard = (() => {
   async function renderCeoOverview(mount) {
     const res = await Api.call("getCeoOverview");
     if (!res.ok) { mount.innerHTML = errorState(res.error); return; }
-    const { announcements, team, payroll, approvals, conduct } = res;
+    const { announcements, team, payroll, approvals, conduct, anomalies } = res;
 
     const nameListHtml = (names, emptyText) =>
       names.length ? names.map(n => Utils.escapeHtml(n)).join(", ") : emptyText;
@@ -154,7 +154,40 @@ const PageDashboard = (() => {
       return rest > 0 ? `${shown}, and ${rest} more` : shown;
     };
 
+    // One-line skim of everything that needs attention, so a quiet day
+    // reads as a quiet day instead of making the CEO scan every card
+    // below just to confirm nothing's pending.
+    const attentionParts = [];
+    if (approvals.pendingTotal > 0) attentionParts.push(`${approvals.pendingTotal} pending approval${approvals.pendingTotal === 1 ? "" : "s"}`);
+    if (conduct.atWarningLimit.length) attentionParts.push(`${conduct.atWarningLimit.length} at warning limit`);
+    if (conduct.nearWarningLimit.length) attentionParts.push(`${conduct.nearWarningLimit.length} near warning limit`);
+    if (anomalies.advanceExceedsEarned.length) attentionParts.push(`${anomalies.advanceExceedsEarned.length} advance overage${anomalies.advanceExceedsEarned.length === 1 ? "" : "s"}`);
+    if (anomalies.unmarkedAttendance.length) attentionParts.push(`${anomalies.unmarkedAttendance.length} attendance gap${anomalies.unmarkedAttendance.length === 1 ? "" : "s"}`);
+    const payrollPct = payroll.totalMonthlyPayroll > 0 ? Math.round(payroll.totalEarnedTillDate / payroll.totalMonthlyPayroll * 100) : 0;
+    const payrollLine = `Payroll ${payrollPct}% through the month (${Utils.currency(payroll.totalEarnedTillDate)} / ${Utils.currency(payroll.totalMonthlyPayroll)})`;
+    const briefingHtml = attentionParts.length
+      ? `${attentionParts.join(" · ")} · ${payrollLine}`
+      : `All clear — nothing needs your attention right now. ${payrollLine}.`;
+
+    // A nudge only in the last few days of the month — "not closed out"
+    // is the normal state for most of the month (see
+    // truncatedNameListHtml above), so this only fires when it's
+    // actually time to act on it.
+    const today = new Date();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const showCloseOutReminder = today.getDate() >= daysInMonth - 4 && payroll.notClosedOut.length > 0;
+
     mount.innerHTML = `
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-sub">${briefingHtml}</div>
+      </div>
+
+      ${showCloseOutReminder ? `
+      <div class="card" style="margin-bottom:14px;background:var(--warning-soft);border-left:3px solid var(--warning)">
+        <div class="card-label">Month-End Reminder</div>
+        <div class="card-sub">${payroll.notClosedOut.length} ${payroll.notClosedOut.length === 1 ? "person hasn't" : "people haven't"} been closed out yet this month — see "Not Closed Out This Month" below.</div>
+      </div>` : ""}
+
       <div class="grid grid-3">
         ${Card.stat({ label: "Total Staff", value: String(team.totalStaff), sub: "Employees + Admins" })}
         ${Card.stat({ label: "Pending Approvals", value: String(approvals.pendingTotal), sub: "Leave / advance / overtime, company-wide" })}
@@ -207,8 +240,8 @@ const PageDashboard = (() => {
           <div class="card-label">Warning Limit</div>
           ${conduct.atWarningLimit.length || conduct.nearWarningLimit.length ? `
             <div class="btn-row" style="margin-top:10px">
-              ${conduct.atWarningLimit.map(w => Badge.render(`${Utils.escapeHtml(w.name)}: at limit (3 of 3)`, "danger")).join("")}
-              ${conduct.nearWarningLimit.map(w => Badge.render(`${Utils.escapeHtml(w.name)}: ${w.count} of 3`, "warning")).join("")}
+              ${conduct.atWarningLimit.map(w => `<span class="clickable" style="cursor:pointer" data-issue-letter="${w.uid}" title="Click to issue a letter">${Badge.render(`${w.name}: at limit (3 of 3)`, "danger")}</span>`).join("")}
+              ${conduct.nearWarningLimit.map(w => `<span class="clickable" style="cursor:pointer" data-issue-letter="${w.uid}" title="Click to issue a letter">${Badge.render(`${w.name}: ${w.count} of 3`, "warning")}</span>`).join("")}
             </div>` : `<div class="card-sub" style="margin-top:6px">No one is close to the 3-warning limit.</div>`}
         </div>
         <div id="recentLettersHost">
@@ -224,6 +257,33 @@ const PageDashboard = (() => {
           )}
         </div>
       </div>
+
+      ${anomalies.unmarkedAttendance.length || anomalies.advanceExceedsEarned.length ? `
+      <div class="section-head"><h2>Anomalies</h2></div>
+      <div class="grid grid-2" style="align-items:start">
+        <div class="card">
+          <div class="card-label">Advance Exceeds Earnings</div>
+          ${anomalies.advanceExceedsEarned.length ? `
+            <div class="approval-list" style="margin-top:10px">
+              ${anomalies.advanceExceedsEarned.map(p => `
+                <div class="approval-row clickable" style="cursor:pointer" data-open-drawer="${p.uid}">
+                  <div><strong>${Utils.escapeHtml(p.name)}</strong></div>
+                  <div class="card-sub">${Utils.currency(p.advanceTaken)} advance taken vs. ${Utils.currency(p.earned)} earned so far · click to review</div>
+                </div>`).join("")}
+            </div>` : `<div class="card-sub" style="margin-top:6px">Nobody's advance exceeds what they've earned so far.</div>`}
+        </div>
+        <div class="card">
+          <div class="card-label">Attendance Gaps</div>
+          ${anomalies.unmarkedAttendance.length ? `
+            <div class="approval-list" style="margin-top:10px">
+              ${anomalies.unmarkedAttendance.map(p => `
+                <div class="approval-row clickable" style="cursor:pointer" data-open-drawer="${p.uid}">
+                  <div><strong>${Utils.escapeHtml(p.name)}</strong></div>
+                  <div class="card-sub">${p.count} days this month with no attendance marked at all · click to review</div>
+                </div>`).join("")}
+            </div>` : `<div class="card-sub" style="margin-top:6px">No attendance gaps this month.</div>`}
+        </div>
+      </div>` : ""}
 
       <div class="section-head"><h2>Company Announcements</h2></div>
       <div class="announce-list">
@@ -253,6 +313,23 @@ const PageDashboard = (() => {
       letter => LetterDoc.open(letter, letter.employee)
     );
     document.getElementById("notClosedOutCard").addEventListener("click", () => openCloseOutModal(payroll.notClosedOut));
+    // A warning-limit badge jumps straight to the Issue Letter form for
+    // that employee (see employees.js's openDeepLinkedApprovalModal),
+    // instead of making the CEO go find them in the Employees grid.
+    mount.querySelectorAll("[data-issue-letter]").forEach(el => {
+      el.addEventListener("click", () => {
+        window.location.hash = `#employees?open=letter&uid=${el.dataset.issueLetter}&type=Warning`;
+      });
+    });
+    // An anomaly row jumps straight to that employee's drawer to
+    // investigate — same deep-link mechanism, opening the drawer
+    // itself rather than a specific action, since what to do about an
+    // anomaly varies (adjust salary, mark missed attendance, etc).
+    mount.querySelectorAll("[data-open-drawer]").forEach(el => {
+      el.addEventListener("click", () => {
+        window.location.hash = `#employees?open=drawer&uid=${el.dataset.openDrawer}`;
+      });
+    });
   }
 
   /** Lets the CEO close out each not-yet-closed-out employee straight
@@ -275,7 +352,12 @@ const PageDashboard = (() => {
             </div>`).join("")}
         </div>`
       : `<div class="card-sub">Everyone's already closed out this month.</div>`;
-    const overlay = Modal.open({ title: "Close Out Month", bodyHtml, wide: true });
+    // Bulk action only offered when there's more than one person left —
+    // for a single person it'd just duplicate the row's own button.
+    // Still a real confirm (not a second click of the same button) since
+    // it commits every person listed at once, permanently.
+    const footerHtml = list.length > 1 ? `<button class="btn danger" id="closeAllBtn">Close Out All (${list.length})</button>` : "";
+    const overlay = Modal.open({ title: "Close Out Month", bodyHtml, footerHtml, wide: true });
     overlay.querySelectorAll("[data-close-out]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const uid = btn.dataset.closeOut;
@@ -290,6 +372,27 @@ const PageDashboard = (() => {
         }
       });
     });
+    const closeAllBtn = overlay.querySelector("#closeAllBtn");
+    if (closeAllBtn) {
+      closeAllBtn.addEventListener("click", async () => {
+        const names = list.map(p => p.name).join(", ");
+        if (!confirm(`Close out this month's salary for all ${list.length} people below?\n\n${names}\n\nEach one's current earnings will be recorded as a permanent "Paid" entry and their Advance Taken reset to ₹0. This can't be undone.`)) return;
+        closeAllBtn.disabled = true;
+        closeAllBtn.textContent = "Closing out...";
+        const remaining = [];
+        let successCount = 0;
+        for (const p of list) {
+          const res = await Api.call("closeSalaryMonth", { uid: p.uid });
+          if (res.ok) successCount++;
+          else remaining.push(p);
+        }
+        Toast.show(
+          successCount === list.length ? `All ${successCount} closed out` : `${successCount} of ${list.length} closed out — ${remaining.length} failed`,
+          successCount === list.length ? "success" : "error"
+        );
+        openCloseOutModal(remaining); // reopen with only the failures (if any) left
+      });
+    }
   }
 
   /** Per-person breakdown behind the "Total Monthly Payroll" card —
@@ -313,7 +416,18 @@ const PageDashboard = (() => {
       })),
       { emptyText: "No salary records yet." }
     );
-    Modal.open({ title: "Payroll Breakdown — This Month", bodyHtml, wide: true });
+    const footerHtml = breakdown.length ? `<button class="btn secondary" id="exportPayrollCsv">Export CSV</button>` : "";
+    const overlay = Modal.open({ title: "Payroll Breakdown — This Month", bodyHtml, footerHtml, wide: true });
+    overlay.querySelector("#exportPayrollCsv")?.addEventListener("click", () => {
+      const header = ["Employee", "Attendance", "Earned So Far", "Committed Monthly Salary"];
+      const rows = breakdown.map(p => [
+        p.name,
+        p.isFreelancer ? "Freelancer — flat amount" : `${p.presentDays} of ${p.totalWorkingDays} days`,
+        p.earned,
+        p.isFreelancer ? "" : p.monthlySalary
+      ]);
+      Utils.downloadCsv(`payroll-breakdown-${Utils.todayIso()}.csv`, [header, ...rows]);
+    });
   }
 
   function openApplyLeaveModal() {
