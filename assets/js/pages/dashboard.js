@@ -179,8 +179,8 @@ const PageDashboard = (() => {
       <div class="grid grid-3">
         <div class="card clickable" id="payrollCard" style="cursor:pointer">
           <div class="card-label">Total Monthly Payroll</div>
-          <div class="card-value">${Utils.currency(payroll.totalEarnedTillDate)}</div>
-          <div class="card-sub">of ${Utils.currency(payroll.totalMonthlyPayroll)} committed this month · click for breakdown</div>
+          <div class="card-value">${Utils.currency(payroll.totalEarnedTillDate)} <span style="font-size:var(--fs-md);font-weight:400;color:var(--muted)">/ ${Utils.currency(payroll.totalMonthlyPayroll)}</span></div>
+          <div class="card-sub">Earned so far / committed this month · click for breakdown</div>
         </div>
         ${Card.stat({ label: "Advances Outstanding", value: Utils.currency(payroll.totalAdvancesOutstanding), sub: "Across all staff" })}
         <div class="card clickable" id="notClosedOutCard" style="cursor:pointer">
