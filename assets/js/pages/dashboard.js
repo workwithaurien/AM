@@ -303,7 +303,13 @@ const PageDashboard = (() => {
       breakdown.map(p => ({
         name: Utils.escapeHtml(p.name),
         attendance: p.isFreelancer ? Badge.render("Freelancer — flat amount", "neutral") : `${p.presentDays} of ${p.totalWorkingDays} days`,
-        earned: Utils.currency(p.earned)
+        // Freelancer's earned always equals their flat Monthly Salary
+        // (no proration — see computeSalary_'s isFreelancer branch), so
+        // showing "/ committed" next to it would just repeat the same
+        // number the "Freelancer — flat amount" badge already explains.
+        earned: p.isFreelancer
+          ? Utils.currency(p.earned)
+          : `${Utils.currency(p.earned)} <span style="color:var(--muted)">/ ${Utils.currency(p.monthlySalary)}</span>`
       })),
       { emptyText: "No salary records yet." }
     );
