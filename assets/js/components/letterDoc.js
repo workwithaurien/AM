@@ -45,8 +45,14 @@ const LetterDoc = (() => {
     });
   }
 
+  /** Blob URLs with a bare "text/html" MIME type have no declared
+   *  charset, so without a <meta charset> tag in the HTML itself (the
+   *  "Loading…" placeholder doesn't have one) the browser can fall back
+   *  to Latin-1 and mangle any non-ASCII character — e.g. "…" turning
+   *  into "â€¦". Declaring charset=utf-8 on the Blob itself fixes it
+   *  for every caller, not just ones that remember to add the tag. */
   function blobUrl(htmlString) {
-    return URL.createObjectURL(new Blob([htmlString], { type: "text/html" }));
+    return URL.createObjectURL(new Blob([htmlString], { type: "text/html;charset=utf-8" }));
   }
 
   function ordinal(n) {
