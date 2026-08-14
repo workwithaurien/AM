@@ -9,6 +9,11 @@ const PageDashboard = (() => {
 
     const { announcements, salary, reportSubmittedToday, todayAttendance, todaysTask } = res;
     const isAdmin = Auth.isAdmin();
+    // CEO oversees the team rather than doing their own tracked
+    // day-to-day work, so their own Login/Logout, Attendance Summary,
+    // Working Hours, and Salary Earned cards don't apply — a regular
+    // Admin still gets all four, unchanged.
+    const isCeo = Auth.isCeo();
     // Freelancers are paid a manually-set amount each cycle, not via
     // Present-Days attendance tracking — no Login/Logout/Break, no
     // Attendance Summary/Working Hours stats, no Apply Leave/Log
@@ -44,7 +49,9 @@ const PageDashboard = (() => {
           ${onBreak ? "End Break" : "Take Break"}
         </button>` : ""}
       </div>`;
-    const topCardsHtml = isAdmin
+    const topCardsHtml = isCeo
+      ? ""
+      : isAdmin
       ? `<div class="grid grid-4">
           ${attendanceLoginCard}
           ${Card.stat({ label: "Attendance Summary", value: salary.presentDays + "/" + salary.totalWorkingDays, sub: "Present days this month" })}
