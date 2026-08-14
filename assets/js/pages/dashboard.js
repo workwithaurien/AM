@@ -188,12 +188,6 @@ const PageDashboard = (() => {
         <div class="card-sub">${payroll.notClosedOut.length} ${payroll.notClosedOut.length === 1 ? "person hasn't" : "people haven't"} been closed out yet this month — see "Not Closed Out This Month" below.</div>
       </div>` : ""}
 
-      <div class="grid grid-3">
-        ${Card.stat({ label: "Total Staff", value: String(team.totalStaff), sub: "Employees + Admins" })}
-        ${Card.stat({ label: "Pending Approvals", value: String(approvals.pendingTotal), sub: "Leave / advance / overtime, company-wide" })}
-        ${Card.stat({ label: "Awaiting Your Approval", value: String(approvals.awaitingYourApproval.length), sub: "Submitted by an Admin — only you can decide" })}
-      </div>
-
       <div class="section-head"><h2>Team &amp; Attendance</h2></div>
       <div class="grid grid-4">
         ${Card.stat({ label: "Present", value: `${team.presentToday}/${team.attendanceEligibleTotal}`, sub: "Freelancers excluded" })}
