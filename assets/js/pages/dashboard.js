@@ -119,8 +119,8 @@ const PageDashboard = (() => {
 
       <div class="quick-actions">
         ${isAdmin ? "" : `<button class="btn" id="qaReport">Submit Work Report</button>`}
-        ${isFreelancer ? "" : `<button class="btn secondary" id="qaLeave">Apply Leave</button>`}
-        <button class="btn secondary" id="qaAdvance">Request Advance Salary</button>
+        ${isFreelancer || isCeo ? "" : `<button class="btn secondary" id="qaLeave">Apply Leave</button>`}
+        ${isCeo ? "" : `<button class="btn secondary" id="qaAdvance">Request Advance Salary</button>`}
         ${isAdmin || isFreelancer ? "" : `<button class="btn secondary" id="qaOvertime">Log Overtime</button>`}
       </div>
     `;
@@ -129,7 +129,7 @@ const PageDashboard = (() => {
     document.getElementById("breakBtn")?.addEventListener("click", () => markBreak(onBreak ? "end" : "start"));
     document.getElementById("qaReport")?.addEventListener("click", () => (window.location.hash = "#work-reports"));
     document.getElementById("qaLeave")?.addEventListener("click", openApplyLeaveModal);
-    document.getElementById("qaAdvance").addEventListener("click", openRequestAdvanceModal);
+    document.getElementById("qaAdvance")?.addEventListener("click", openRequestAdvanceModal);
     document.getElementById("qaOvertime")?.addEventListener("click", openLogOvertimeModal);
   }
 
