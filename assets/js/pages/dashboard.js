@@ -155,16 +155,15 @@ const PageDashboard = (() => {
     };
 
     mount.innerHTML = `
-      <div class="grid grid-4">
+      <div class="grid grid-3">
         ${Card.stat({ label: "Total Staff", value: String(team.totalStaff), sub: "Employees + Admins" })}
-        ${Card.stat({ label: "Present Today", value: `${team.presentToday}/${team.attendanceEligibleTotal}`, sub: "Freelancers excluded — no attendance tracking" })}
         ${Card.stat({ label: "Pending Approvals", value: String(approvals.pendingTotal), sub: "Leave / advance / overtime, company-wide" })}
         ${Card.stat({ label: "Awaiting Your Approval", value: String(approvals.awaitingYourApproval.length), sub: "Submitted by an Admin — only you can decide" })}
       </div>
 
       <div class="section-head"><h2>Team &amp; Attendance</h2></div>
       <div class="grid grid-4">
-        ${Card.stat({ label: "Present", value: String(team.presentToday) })}
+        ${Card.stat({ label: "Present", value: `${team.presentToday}/${team.attendanceEligibleTotal}`, sub: "Freelancers excluded" })}
         ${Card.stat({ label: "Absent", value: String(team.absentToday), sub: nameListHtml(team.absentNames, "") })}
         ${Card.stat({ label: "On Leave", value: String(team.onLeaveToday), sub: nameListHtml(team.onLeaveNames, "") })}
         ${Card.stat({ label: "Not Marked", value: String(team.notMarkedToday) })}
