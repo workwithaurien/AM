@@ -41,8 +41,8 @@ const Navbar = (() => {
     const gear = document.getElementById("gearBtn");
     if (gear) gear.addEventListener("click", () => (window.location.hash = "#settings"));
     document.getElementById("avatarBtn").addEventListener("click", () => (window.location.hash = "#profile"));
-    document.getElementById("logoutBtn").addEventListener("click", () => {
-      if (confirm("Log out of Aurien Media EMS?")) Auth.logout();
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      if (confirm("Log out of Aurien Media EMS?")) await Auth.logout();
     });
     document.getElementById("notifBtn").addEventListener("click", toggleNotifications);
     document.addEventListener("click", closeNotificationsOnOutsideClick);

@@ -30,9 +30,9 @@ const Api = (() => {
       // thinks the browser is logged in, so every page would otherwise
       // just sit on raw "Not authenticated" error text forever with no
       // way back. Force a clean re-login instead.
-      if (!data.ok && data.error === "Not authenticated. Please log in again." && action !== "login") {
+      if (!data.ok && data.error === "Not authenticated. Please log in again." && action !== "login" && action !== "logout") {
         sessionStorage.setItem("ems_login_notice", "Your session expired — please log in again.");
-        Auth.logout();
+        Auth.logout(); // async, but nothing here depends on it finishing
       }
       return data;
     } catch (err) {

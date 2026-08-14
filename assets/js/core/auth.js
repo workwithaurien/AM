@@ -35,7 +35,12 @@ const Auth = (() => {
   // approval modals for that extra check.
   function isAdmin() { return getUser()?.role === "admin" || getUser()?.role === "ceo"; }
   function isCeo() { return getUser()?.role === "ceo"; }
-  function logout() {
+  async function logout() {
+    // Best-effort: invalidate the token server-side too, so it can't
+    // keep being used (e.g. if it leaked) for the rest of its 6-hour
+    // cache life. Never block the actual logout on this — a network
+    // hiccup here shouldn't trap someone on the page.
+    try { await Api.call("logout"); } catch { /* still log out locally below */ }
     sessionStorage.removeItem(KEY);
     localStorage.removeItem(KEY);
     if (typeof State !== "undefined") State.clear(); // don't leak cached data to the next login on this browser
