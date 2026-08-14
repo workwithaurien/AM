@@ -120,7 +120,16 @@ const PageEmployees = (() => {
             })),
             { emptyText: "No attendance records yet." }
           ) },
-        { id: "salary", label: "Salary", render: () => empSalary ? `
+        { id: "salary", label: "Salary", render: () => empSalary ? (empSalary.isFreelancer ? `
+            <div class="grid grid-2">
+              ${Card.stat({ label: "Amount Owed (This Cycle)", value: Utils.currency(empSalary.monthlySalary), sub: "Set manually — not attendance-based" })}
+              ${Card.stat({ label: "Advance Taken", value: Utils.currency(empSalary.advanceTaken) })}
+            </div>
+            <div style="margin-top:10px">
+              ${Card.stat({ label: "Net Payable", value: Utils.currency(empSalary.monthlySalary - empSalary.advanceTaken) })}
+            </div>
+            <div class="card-sub" style="margin-top:10px">Freelancer — paid the full amount set in "Update Salary" each cycle, no Present-Days proration.</div>
+          ` : `
             <div class="grid grid-2">
               ${Card.stat({ label: "Present Days", value: `${empSalary.presentDays}/${empSalary.totalWorkingDays}`, sub: presentDaysSub(empSalary) })}
               ${Card.stat({ label: "Monthly Salary", value: Utils.currency(empSalary.monthlySalary) })}
@@ -130,7 +139,7 @@ const PageEmployees = (() => {
               ${Card.stat({ label: "Net Payable", value: Utils.currency(Math.round(empSalary.monthlySalary / empSalary.totalWorkingDays * empSalary.presentDays) - empSalary.advanceTaken) })}
             </div>
             <div class="card-sub" style="margin-top:10px">Real-time earnings use the same calculator as the employee's own Salary page.</div>
-          ` : `<div class="card-sub">No salary record for this employee yet — use "Update Salary" below to create one.</div>` },
+          `) : `<div class="card-sub">No salary record for this employee yet — use "Update Salary" below to create one.</div>` },
         { id: "reports", label: "Work Reports", render: () => DataTable.render(
             [{ key: "date", label: "Date" }, { key: "client", label: "Client" }, { key: "type", label: "Type" }],
             empReports.map(r => ({ date: Utils.formatDate(r.date), client: r.clientName, type: r.workType }))
@@ -628,17 +637,18 @@ const PageEmployees = (() => {
   /** A small live calculator: edit Monthly Salary / Advance Taken and see
    *  the resulting Net Payable update immediately, then save to the sheet. */
   function openUpdateSalaryModal(emp, currentSalary) {
+    const isFreelancer = emp.employmentType === "Freelancer";
     const base = currentSalary || { monthlySalary: 0, advanceTaken: 0 };
     const bodyHtml = `
       <form id="salForm">
-        <div class="field"><label>Monthly Salary</label>
+        <div class="field"><label>${isFreelancer ? "Amount Owed (This Cycle)" : "Monthly Salary"}</label>
           <input class="input" type="number" min="0" name="monthlySalary" value="${base.monthlySalary}" required /></div>
         <div class="field"><label>Advance Taken</label>
           <input class="input" type="number" min="0" name="advanceTaken" value="${base.advanceTaken}" required /></div>
         <div class="card">
           <div class="card-label">Net Payable Preview</div>
           <div class="card-value" id="salPreview">${Utils.currency(base.monthlySalary - base.advanceTaken)}</div>
-          <div class="card-sub">Monthly salary − advance taken. Present-day proration is applied on the Salary page itself.</div>
+          <div class="card-sub">${isFreelancer ? "Amount owed − advance taken. Paid in full, no attendance proration for Freelancers." : "Monthly salary − advance taken. Present-day proration is applied on the Salary page itself."}</div>
         </div>
       </form>`;
     const footerHtml = `
@@ -715,7 +725,7 @@ const PageEmployees = (() => {
     });
   }
 
-  const EMPLOYMENT_TYPES = ["Full Time", "Part Time", "Intern"];
+  const EMPLOYMENT_TYPES = ["Full Time", "Part Time", "Intern", "Freelancer"];
 
   /** Designation, Department, and Employment Type together — only Full
    *  Time gets the 1.5 paid-leave-days/month rule in the Salary

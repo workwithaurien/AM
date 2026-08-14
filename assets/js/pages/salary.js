@@ -8,6 +8,44 @@ const PageSalary = (() => {
     if (!res.ok) { mount.innerHTML = `<div class="empty-state">${res.error}</div>`; return; }
     const s = res.salary;
 
+    const historyHtml = `
+      <div class="section-head"><h2>Salary History</h2></div>
+      ${DataTable.render(
+        [
+          { key: "month", label: "Month" },
+          { key: "presentDays", label: "Present Days" },
+          { key: "earned", label: "Earned" },
+          { key: "advance", label: "Advance" },
+          { key: "netPaid", label: "Net Paid" },
+          { key: "status", label: "Status" }
+        ],
+        s.history.map(h => ({
+          month: h.month,
+          presentDays: h.presentDays || "—",
+          earned: Utils.currency(h.earned),
+          advance: Utils.currency(h.advance),
+          netPaid: Utils.currency(h.netPaid),
+          status: Badge.render(h.status, h.status === "Paid" ? "success" : "warning")
+        }))
+      )}
+    `;
+
+    if (s.isFreelancer) {
+      // Freelancers are paid a manually-set amount each cycle, not via
+      // Present-Days proration — no calculator, since there's nothing
+      // to prorate against.
+      const netPayable = s.monthlySalary - s.advanceTaken;
+      mount.innerHTML = `
+        <div class="grid grid-3">
+          ${Card.stat({ label: "Amount Owed (This Cycle)", value: Utils.currency(s.monthlySalary), sub: "Set by admin — not attendance-based" })}
+          ${Card.stat({ label: "Advance Salary", value: Utils.currency(s.advanceTaken) })}
+          ${Card.stat({ label: "Net Payable", value: Utils.currency(netPayable), sub: "Amount owed − advance taken" })}
+        </div>
+        ${historyHtml}
+      `;
+      return;
+    }
+
     const perDay = s.monthlySalary / s.totalWorkingDays;
     const earnedTillDate = Math.round(perDay * s.presentDays);
     const netPayable = earnedTillDate - s.advanceTaken;
@@ -43,25 +81,7 @@ const PageSalary = (() => {
         </div>
       </div>
 
-      <div class="section-head"><h2>Salary History</h2></div>
-      ${DataTable.render(
-        [
-          { key: "month", label: "Month" },
-          { key: "presentDays", label: "Present Days" },
-          { key: "earned", label: "Earned" },
-          { key: "advance", label: "Advance" },
-          { key: "netPaid", label: "Net Paid" },
-          { key: "status", label: "Status" }
-        ],
-        s.history.map(h => ({
-          month: h.month,
-          presentDays: h.presentDays,
-          earned: Utils.currency(h.earned),
-          advance: Utils.currency(h.advance),
-          netPaid: Utils.currency(h.netPaid),
-          status: Badge.render(h.status, h.status === "Paid" ? "success" : "warning")
-        }))
-      )}
+      ${historyHtml}
     `;
 
     document.getElementById("calcPresentDays").addEventListener("input", e => {

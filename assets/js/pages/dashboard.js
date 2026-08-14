@@ -9,6 +9,14 @@ const PageDashboard = (() => {
 
     const { announcements, salary, reportSubmittedToday, todayAttendance, todaysTask } = res;
     const isAdmin = Auth.isAdmin();
+    // Freelancers are paid a manually-set amount each cycle, not via
+    // Present-Days attendance tracking — no Login/Logout/Break, no
+    // Attendance Summary/Working Hours stats, no Apply Leave/Log
+    // Overtime (both feed the Present-Days math they don't use).
+    const isFreelancer = user.employmentType === "Freelancer";
+    const earnedTillDate = salary.isFreelancer
+      ? salary.monthlySalary
+      : Math.round(salary.monthlySalary / salary.totalWorkingDays * salary.presentDays);
     const loggedIn = !!todayAttendance.loginTime;
     const loggedOut = !!todayAttendance.logoutTime;
     // Older deployed backends (before upgradeEMS) won't send Break Start/
@@ -41,7 +49,25 @@ const PageDashboard = (() => {
           ${attendanceLoginCard}
           ${Card.stat({ label: "Attendance Summary", value: salary.presentDays + "/" + salary.totalWorkingDays, sub: "Present days this month" })}
           ${Card.stat({ label: "Today's Working Hours", value: workingHours(todayAttendance), sub: "Auto-tracked from Login/Logout" })}
-          ${Card.stat({ label: "Salary Earned Till Date", value: Utils.currency(Math.round(salary.monthlySalary / salary.totalWorkingDays * salary.presentDays)), sub: "Based on attendance" })}
+          ${Card.stat({ label: "Salary Earned Till Date", value: Utils.currency(earnedTillDate), sub: "Based on attendance" })}
+        </div>`
+      : isFreelancer
+      ? `<div class="grid grid-3">
+          ${Card.stat({
+            label: "Today's Task Drive Link",
+            value: todaysTask
+              ? `<a href="${Utils.escapeHtml(todaysTask.url)}" target="_blank" rel="noopener">Open</a>`
+              : "None assigned",
+            sub: todaysTask ? Utils.escapeHtml(todaysTask.title) : "See Drive tab for all links"
+          })}
+          ${Card.stat({ label: "Amount Owed (This Cycle)", value: Utils.currency(earnedTillDate), sub: "Set by admin — not attendance-based" })}
+          ${Card.stat({
+            label: "Work Report",
+            value: reportSubmittedToday
+              ? `<span class="text-success">Submitted</span>`
+              : `<span class="text-danger">Pending</span>`,
+            sub: "For today"
+          })}
         </div>`
       : `<div class="grid grid-3">
           ${attendanceLoginCard}
@@ -56,7 +82,7 @@ const PageDashboard = (() => {
         </div>
         <div class="grid grid-3" style="margin-top:14px">
           ${Card.stat({ label: "Today's Working Hours", value: workingHours(todayAttendance), sub: "Auto-tracked from Login/Logout" })}
-          ${Card.stat({ label: "Salary Earned Till Date", value: Utils.currency(Math.round(salary.monthlySalary / salary.totalWorkingDays * salary.presentDays)), sub: "Based on attendance" })}
+          ${Card.stat({ label: "Salary Earned Till Date", value: Utils.currency(earnedTillDate), sub: "Based on attendance" })}
           ${Card.stat({
             label: "Work Report",
             value: reportSubmittedToday
@@ -86,16 +112,16 @@ const PageDashboard = (() => {
 
       <div class="quick-actions">
         ${isAdmin ? "" : `<button class="btn" id="qaReport">Submit Work Report</button>`}
-        <button class="btn secondary" id="qaLeave">Apply Leave</button>
+        ${isFreelancer ? "" : `<button class="btn secondary" id="qaLeave">Apply Leave</button>`}
         <button class="btn secondary" id="qaAdvance">Request Advance Salary</button>
-        ${isAdmin ? "" : `<button class="btn secondary" id="qaOvertime">Log Overtime</button>`}
+        ${isAdmin || isFreelancer ? "" : `<button class="btn secondary" id="qaOvertime">Log Overtime</button>`}
       </div>
     `;
 
-    document.getElementById("attendanceBtn").addEventListener("click", () => markAttendance(loggedIn ? "logout" : "login"));
+    document.getElementById("attendanceBtn")?.addEventListener("click", () => markAttendance(loggedIn ? "logout" : "login"));
     document.getElementById("breakBtn")?.addEventListener("click", () => markBreak(onBreak ? "end" : "start"));
     document.getElementById("qaReport")?.addEventListener("click", () => (window.location.hash = "#work-reports"));
-    document.getElementById("qaLeave").addEventListener("click", openApplyLeaveModal);
+    document.getElementById("qaLeave")?.addEventListener("click", openApplyLeaveModal);
     document.getElementById("qaAdvance").addEventListener("click", openRequestAdvanceModal);
     document.getElementById("qaOvertime")?.addEventListener("click", openLogOvertimeModal);
   }

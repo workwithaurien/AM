@@ -49,7 +49,11 @@ const Sidebar = (() => {
 
   function render() {
     const user = Auth.getUser();
-    const items = NAV.filter(n => n.roles.includes(user.role));
+    // Freelancers don't track attendance at all (paid a manually-set
+    // amount each cycle, not via Present-Days) — nothing on this page
+    // applies to them, so it's dropped from their nav entirely rather
+    // than showing an always-empty calendar.
+    const items = NAV.filter(n => n.roles.includes(user.role) && !(n.id === "attendance" && user.employmentType === "Freelancer"));
     const el = document.getElementById("sidebar");
     el.innerHTML = `
       <div class="sidebar-logo"><span class="dot"></span><span class="label">Aurien Media</span></div>
