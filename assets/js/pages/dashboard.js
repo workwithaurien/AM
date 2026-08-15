@@ -2,6 +2,17 @@
  * dashboard.js — overview cards + quick actions.
  */
 const PageDashboard = (() => {
+  /** Same cache key/shape as attendance.js's own fetchHolidays — whichever
+   *  page fetches first populates it for the other, since holidays rarely
+   *  change within a session. */
+  async function fetchHolidays() {
+    const cached = State.get("holidays");
+    if (cached) return cached;
+    const res = await Api.call("getHolidays");
+    if (res.ok) { State.set("holidays", res.holidays); return res.holidays; }
+    return []; // don't block the whole Dashboard over a holidays fetch failure
+  }
+
   async function render(mount) {
     // CEO gets a completely different, company-wide master dashboard —
     // see renderCeoOverview — instead of the "my own attendance/salary"
@@ -9,11 +20,17 @@ const PageDashboard = (() => {
     if (Auth.isCeo()) return renderCeoOverview(mount);
 
     const user = Auth.getUser();
-    const res = await Api.call("getDashboard");
+    const [res, holidays] = await Promise.all([Api.call("getDashboard"), fetchHolidays()]);
     if (!res.ok) { mount.innerHTML = errorState(res.error); return; }
 
     const { announcements, salary, reportSubmittedToday, todayAttendance, todaysTask } = res;
     const isAdmin = Auth.isAdmin();
+    const todayIso = Utils.todayIso();
+    // Sunday is already a paid day off that counts as Present
+    // automatically for salary (see freeSundays_ in Code.gs) — same for
+    // a company holiday — so there's nothing to clock in for. Enforced
+    // again server-side in markAttendance_, this is just the UI half.
+    const isPaidDayOff = new Date().getDay() === 0 || holidays.some(h => h.date === todayIso);
     // Freelancers are paid a manually-set amount each cycle, not via
     // Present-Days attendance tracking — no Login/Logout/Break, no
     // Attendance Summary/Working Hours stats, no Apply Leave/Log
@@ -36,11 +53,12 @@ const PageDashboard = (() => {
     // Admin manages the team rather than doing their own day-to-day work,
     // so the task-link and work-report stat cards (both employee-only
     // concerns) drop out of their view entirely.
+    const blockLogin = isPaidDayOff && !loggedIn;
     const attendanceLoginCard = `
       <div class="card">
         <div class="card-label">Login / Logout</div>
-        <div class="card-sub" id="attendanceStatus">${attendanceStatusText(todayAttendance)}</div>
-        <button class="btn clock-btn" id="attendanceBtn" style="margin-top:10px" ${loggedOut ? "disabled" : ""}>
+        <div class="card-sub" id="attendanceStatus">${blockLogin ? "Paid day off — no login needed" : attendanceStatusText(todayAttendance)}</div>
+        <button class="btn clock-btn" id="attendanceBtn" style="margin-top:10px" ${loggedOut || blockLogin ? "disabled" : ""}>
           ${loggedIn ? "Logout" : "Login"}
         </button>
         ${loggedIn ? `
