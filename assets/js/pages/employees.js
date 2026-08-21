@@ -665,8 +665,14 @@ const PageEmployees = (() => {
       const halfDayPresentCredit = leaveRows.reduce((sum, r) => sum + (1 - (Number(r.leaveValue) || 1)), 0);
       // Approved overtime never writes an Attendance row, so it's summed
       // separately for whichever month is in view — same as leave above.
+      // Kept OUT of the Present headline number (unlike the Salary page's
+      // presentDays, which folds overtime in for payroll purposes) so
+      // Present + Absent + Leave always reconciles to the actual number
+      // of days elapsed in the month at a glance — overtime is bonus
+      // days worked, not a calendar day, and mixing it into Present made
+      // that reconciliation look broken (e.g. 20 + 3 != 21 days elapsed).
       const overtimeDays = overtimeRows.filter(o => inMonth(o.date)).reduce((sum, o) => sum + (Number(o.value) || 0), 0);
-      const present = monthRows.filter(r => r.status === "Present").length + halfDayPresentCredit + overtimeDays;
+      const present = monthRows.filter(r => r.status === "Present").length + halfDayPresentCredit;
       const absent = monthRows.filter(r => r.status === "Absent").length;
       const paidUsed = paidLeave.eligible ? Math.min(totalLeaveDays, 1.5) : 0;
       const unpaid = paidLeave.eligible ? Math.max(0, totalLeaveDays - 1.5) : totalLeaveDays;
@@ -679,7 +685,7 @@ const PageEmployees = (() => {
       const wrap = overlay.querySelector("#attResult");
       wrap.innerHTML = `
         <div class="grid grid-3">
-          ${Card.stat({ label: "Total Present", value: present, sub: overtimeDays > 0 ? `${overtimeDays} day${overtimeDays === 1 ? "" : "s"} extra (overtime)` : "" })}
+          ${Card.stat({ label: "Total Present", value: present, sub: overtimeDays > 0 ? `+${overtimeDays} overtime day${overtimeDays === 1 ? "" : "s"} approved (on top of these)` : "" })}
           ${Card.stat({ label: "Total Absent", value: absent })}
           ${Card.stat({ label: "Total Leaves", value: totalLeaveDays, sub: leaveSub })}
         </div>
