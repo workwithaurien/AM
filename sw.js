@@ -51,7 +51,16 @@ self.addEventListener("fetch", event => {
   event.respondWith(
     fetch(req)
       .then(res => {
-        if (res.ok) caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
+        // Clone synchronously, before returning — the page may start
+        // reading the original response's body immediately once it gets
+        // it back, and cloning after that point throws "body is already
+        // used" (a real, previously-unnoticed bug here, unrelated to
+        // the API login/session code — this handler never touches the
+        // cross-origin POSTs to Apps Script, only same-origin GETs).
+        if (res.ok) {
+          const resToCache = res.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(req, resToCache));
+        }
         return res;
       })
       .catch(() => caches.match(req))
