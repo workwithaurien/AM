@@ -175,8 +175,15 @@ const PageDashboard = (() => {
     if (conduct.nearWarningLimit.length) attentionParts.push(`${conduct.nearWarningLimit.length} near warning limit`);
     if (anomalies.advanceExceedsEarned.length) attentionParts.push(`${anomalies.advanceExceedsEarned.length} advance overage${anomalies.advanceExceedsEarned.length === 1 ? "" : "s"}`);
     if (anomalies.unmarkedAttendance.length) attentionParts.push(`${anomalies.unmarkedAttendance.length} attendance gap${anomalies.unmarkedAttendance.length === 1 ? "" : "s"}`);
-    const payrollPct = payroll.totalMonthlyPayroll > 0 ? Math.round(payroll.totalEarnedTillDate / payroll.totalMonthlyPayroll * 100) : 0;
-    const payrollLine = `Payroll ${payrollPct}% through the month (${Utils.currency(payroll.totalEarnedTillDate)} / ${Utils.currency(payroll.totalMonthlyPayroll)})`;
+    // Earned So Far already includes overtime pay (computeSalary_ folds
+    // overtime straight into Present Days), but Monthly Payroll is flat
+    // base salary with no overtime in it — so this is NOT "% through the
+    // month" (a heavy-overtime month could show over 100%). Called out as
+    // two separate figures instead of one ratio so it can't be misread as
+    // calendar progress.
+    const payrollLine = payroll.totalOvertimePay > 0
+      ? `Earned so far ${Utils.currency(payroll.totalEarnedTillDate)} (incl. ${Utils.currency(payroll.totalOvertimePay)} overtime) vs. ${Utils.currency(payroll.totalMonthlyPayroll)} monthly commitment`
+      : `Earned so far ${Utils.currency(payroll.totalEarnedTillDate)} vs. ${Utils.currency(payroll.totalMonthlyPayroll)} monthly commitment`;
     const briefingHtml = attentionParts.length
       ? `${attentionParts.join(" · ")} · ${payrollLine}`
       : `All clear — nothing needs your attention right now. ${payrollLine}.`;
@@ -216,8 +223,9 @@ const PageDashboard = (() => {
       <div class="section-head"><h2>Payroll &amp; Financials</h2></div>
       <div class="grid grid-3">
         <div class="card clickable" id="payrollCard" style="cursor:pointer">
-          <div class="card-label">Total Monthly Payroll</div>
-          <div class="card-value">${Utils.currency(payroll.totalEarnedTillDate)} <span style="font-size:var(--fs-md);font-weight:400;color:var(--muted)">/ ${Utils.currency(payroll.totalMonthlyPayroll)}</span></div>
+          <div class="card-label">Earned So Far</div>
+          <div class="card-value">${Utils.currency(payroll.totalEarnedTillDate)}</div>
+          <div class="card-sub">${payroll.totalOvertimePay > 0 ? `Incl. ${Utils.currency(payroll.totalOvertimePay)} overtime · ` : ""}${Utils.currency(payroll.totalMonthlyPayroll)} monthly commitment</div>
         </div>
         ${Card.stat({ label: "Advances Outstanding", value: Utils.currency(payroll.totalAdvancesOutstanding) })}
         <div class="card clickable" id="notClosedOutCard" style="cursor:pointer">
@@ -449,10 +457,12 @@ const PageDashboard = (() => {
    *  isFreelancer branch — there's no day count to show for those). */
   function openPayrollBreakdownModal(breakdown) {
     const bodyHtml = DataTable.render(
-      [{ key: "name", label: "Employee" }, { key: "attendance", label: "Attendance" }, { key: "earned", label: "Earned So Far" }],
+      [{ key: "name", label: "Employee" }, { key: "attendance", label: "Attendance" }, { key: "overtimePay", label: "Overtime Pay" }, { key: "earned", label: "Earned So Far" }],
       breakdown.map(p => ({
         name: Utils.escapeHtml(p.name),
         attendance: p.isFreelancer ? Badge.render("Freelancer — flat amount", "neutral") : `${p.presentDays} of ${p.totalWorkingDays} days`,
+        // Freelancers get no overtime credit (see computeSalary_) — always 0.
+        overtimePay: p.overtimePay > 0 ? Utils.currency(p.overtimePay) : "—",
         // Freelancer's earned always equals their flat Monthly Salary
         // (no proration — see computeSalary_'s isFreelancer branch), so
         // showing "/ committed" next to it would just repeat the same
@@ -466,10 +476,11 @@ const PageDashboard = (() => {
     const footerHtml = breakdown.length ? `<button class="btn secondary" id="exportPayrollCsv">Export CSV</button>` : "";
     const overlay = Modal.open({ title: "Payroll Breakdown — This Month", bodyHtml, footerHtml, wide: true });
     overlay.querySelector("#exportPayrollCsv")?.addEventListener("click", () => {
-      const header = ["Employee", "Attendance", "Earned So Far", "Committed Monthly Salary"];
+      const header = ["Employee", "Attendance", "Overtime Pay", "Earned So Far", "Committed Monthly Salary"];
       const rows = breakdown.map(p => [
         p.name,
         p.isFreelancer ? "Freelancer — flat amount" : `${p.presentDays} of ${p.totalWorkingDays} days`,
+        p.overtimePay || 0,
         p.earned,
         p.isFreelancer ? "" : p.monthlySalary
       ]);
