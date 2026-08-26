@@ -62,9 +62,10 @@ const PageAttendance = (() => {
 
   /** Sum of Approved overtime Value for dates within one calendar month —
    *  same shape as the backend's approvedOvertimeDaysInMonth_. Overtime
-   *  never writes an Attendance row (see getAttendanceCalendar_), so it
-   *  has to be added on top of presentCount_ separately, same as it's
-   *  added on top of Salary's presentDays. */
+   *  never writes an Attendance row (see getAttendanceCalendar_) and is
+   *  kept OUT of the Present count (unlike Salary's presentDays, which
+   *  folds it in for payroll) so Present + Absent reconciles to the
+   *  actual days elapsed; it's shown separately via overtimeSub_. */
   function overtimeDaysInMonth_(overtime, year, monthIndex) {
     return overtime
       .filter(o => {
@@ -85,7 +86,7 @@ const PageAttendance = (() => {
     };
     const overtimeDays = overtimeDaysInMonth_(overtime, year, monthIndex);
     return {
-      present: presentCount_(attendance.filter(a => inMonth(a.date))) + overtimeDays,
+      present: presentCount_(attendance.filter(a => inMonth(a.date))),
       absent: attendance.filter(a => a.status === "Absent" && inMonth(a.date)).length,
       holidays: holidays.filter(h => inMonth(h.date)).length,
       overtimeDays
@@ -166,7 +167,7 @@ const PageAttendance = (() => {
       .filter(o => o.date.startsWith(String(year)))
       .reduce((sum, o) => sum + (Number(o.value) || 0), 0);
     const yearCounts = {
-      present: presentCount_(attendance.filter(a => a.date.startsWith(String(year)))) + yearOvertimeDays,
+      present: presentCount_(attendance.filter(a => a.date.startsWith(String(year)))),
       absent: attendance.filter(a => a.status === "Absent" && a.date.startsWith(String(year))).length,
       holidays: holidays.filter(h => h.date.startsWith(String(year))).length,
       overtimeDays: yearOvertimeDays
