@@ -25,8 +25,7 @@ const Api = (() => {
       });
       if (!res.ok) return { ok: false, error: "Network error (" + res.status + ")" };
       const data = await res.json();
-      console.log("API_DEBUG", action, data); // TEMP DEBUG — remove after diagnosing login issue
-      // Apps Script sessions cap out at 6 hours (CacheService's hard
+      // Apps Script sessions cap out at 6 hours (the session store's hard
       // limit) — when that expires server-side, sessionStorage still
       // thinks the browser is logged in, so every page would otherwise
       // just sit on raw "Not authenticated" error text forever with no
