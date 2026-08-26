@@ -34,7 +34,11 @@ const PageDashboard = (() => {
     // Freelancers are paid a manually-set amount each cycle, not via
     // Present-Days attendance tracking — no Login/Logout/Break, no
     // Attendance Summary/Working Hours stats, no Apply Leave/Log
-    // Overtime (both feed the Present-Days math they don't use).
+    // Overtime (both feed the Present-Days math they don't use). Admins
+    // DO use Present-Days (see the Attendance Summary card above) and
+    // can already Apply Leave/Request Advance here, so Log Overtime is
+    // available to them too — an Admin-submitted request just requires
+    // CEO approval, same as Leave/Advance already do (canDecideRequestFrom_).
     const isFreelancer = user.employmentType === "Freelancer";
     const earnedTillDate = salary.isFreelancer
       ? salary.monthlySalary
@@ -137,7 +141,7 @@ const PageDashboard = (() => {
         ${isAdmin ? "" : `<button class="btn" id="qaReport">Submit Work Report</button>`}
         ${isFreelancer ? "" : `<button class="btn secondary" id="qaLeave">Apply Leave</button>`}
         <button class="btn secondary" id="qaAdvance">Request Advance Salary</button>
-        ${isAdmin || isFreelancer ? "" : `<button class="btn secondary" id="qaOvertime">Log Overtime</button>`}
+        ${isFreelancer ? "" : `<button class="btn secondary" id="qaOvertime">Log Overtime</button>`}
       </div>
     `;
 
