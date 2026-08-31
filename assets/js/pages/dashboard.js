@@ -394,6 +394,18 @@ const PageDashboard = (() => {
    *  present days/earnings as a locked SalaryHistory row and resets
    *  Advance Taken), so each one is still a deliberate, individually
    *  confirmed action, same as the drawer's own version of this. */
+  /** Reads the (possibly CEO-edited) Present Days value out of a row's
+   *  input and recomputes the "earned" preview next to it — shared by the
+   *  input's own change handler and by whichever Close Out action reads
+   *  the final value before submitting. Returns the person's original
+   *  presentDays when the row has no input (Freelancer). */
+  function currentPresentDays(p) {
+    const input = document.querySelector(`[data-present-days="${p.uid}"]`);
+    if (!input) return p.presentDays;
+    const val = Number(input.value);
+    return isNaN(val) || val < 0 ? p.presentDays : val;
+  }
+
   function openCloseOutModal(list) {
     const bodyHtml = list.length
       ? `<div class="approval-list">
@@ -401,7 +413,15 @@ const PageDashboard = (() => {
             <div class="approval-row">
               <div>
                 <div><strong>${Utils.escapeHtml(p.name)}</strong></div>
-                <div class="card-sub">${p.isFreelancer ? "Freelancer — flat amount" : `${p.presentDays} of ${p.totalWorkingDays} days`} · ${Utils.currency(p.earned)} earned so far</div>
+                ${p.isFreelancer
+                  ? `<div class="card-sub">Freelancer — flat amount · ${Utils.currency(p.earned)} earned so far</div>`
+                  : `<div class="card-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                      <span>Present Days</span>
+                      <input class="input" type="number" min="0" step="0.5" data-present-days="${p.uid}" value="${p.presentDays}" style="width:64px;padding:2px 6px" />
+                      <span>of ${p.totalWorkingDays} ·</span>
+                      <span data-earned-preview="${p.uid}">${Utils.currency(p.earned)}</span>
+                      <span>earned so far</span>
+                    </div>`}
               </div>
               <button class="btn secondary sm" data-close-out="${p.uid}">Close Out</button>
             </div>`).join("")}
@@ -413,12 +433,31 @@ const PageDashboard = (() => {
     // it commits every person listed at once, permanently.
     const footerHtml = list.length > 1 ? `<button class="btn danger" id="closeAllBtn">Close Out All (${list.length})</button>` : "";
     const overlay = Modal.open({ title: "Close Out Month", bodyHtml, footerHtml, wide: true });
+
+    // Editing Present Days here overrides the auto-computed figure for
+    // that Close Out only (see closeSalaryMonth_'s presentDaysOverride) —
+    // e.g. to correct a total inflated by a bad Overtime entry without
+    // first going to fix the underlying record. Live-previews "earned" so
+    // the CEO sees the effect before committing anything.
+    overlay.querySelectorAll("[data-present-days]").forEach(input => {
+      const p = list.find(x => x.uid === input.dataset.presentDays);
+      input.addEventListener("input", () => {
+        const days = currentPresentDays(p);
+        const preview = overlay.querySelector(`[data-earned-preview="${p.uid}"]`);
+        if (preview) preview.textContent = Utils.currency(Math.round(p.monthlySalary / p.totalWorkingDays * days));
+      });
+    });
+
     overlay.querySelectorAll("[data-close-out]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const uid = btn.dataset.closeOut;
         const person = list.find(p => p.uid === uid);
-        if (!confirm(`Close out this month's salary for ${person.name}? This records their current present days and earnings as a permanent "Paid" entry in Salary History, and resets their Advance Taken to ₹0. This can't be undone.`)) return;
-        const res = await Api.call("closeSalaryMonth", { uid });
+        const presentDays = currentPresentDays(person);
+        const overrideNote = !person.isFreelancer && presentDays !== person.presentDays
+          ? ` Present Days will be recorded as ${presentDays} (auto-computed value was ${person.presentDays}).`
+          : "";
+        if (!confirm(`Close out this month's salary for ${person.name}? This records their current present days and earnings as a permanent "Paid" entry in Salary History, and resets their Advance Taken to ₹0.${overrideNote} This can't be undone.`)) return;
+        const res = await Api.call("closeSalaryMonth", { uid, presentDaysOverride: person.isFreelancer ? undefined : presentDays });
         if (res.ok) {
           Toast.show(`${person.name} closed out`, "success");
           openCloseOutModal(list.filter(p => p.uid !== uid)); // reopen with the closed-out person removed
@@ -431,13 +470,14 @@ const PageDashboard = (() => {
     if (closeAllBtn) {
       closeAllBtn.addEventListener("click", async () => {
         const names = list.map(p => p.name).join(", ");
-        if (!confirm(`Close out this month's salary for all ${list.length} people below?\n\n${names}\n\nEach one's current earnings will be recorded as a permanent "Paid" entry and their Advance Taken reset to ₹0. This can't be undone.`)) return;
+        if (!confirm(`Close out this month's salary for all ${list.length} people below?\n\n${names}\n\nEach one's current earnings (using whatever Present Days is currently shown for them) will be recorded as a permanent "Paid" entry and their Advance Taken reset to ₹0. This can't be undone.`)) return;
         closeAllBtn.disabled = true;
         closeAllBtn.textContent = "Closing out...";
         const remaining = [];
         let successCount = 0;
         for (const p of list) {
-          const res = await Api.call("closeSalaryMonth", { uid: p.uid });
+          const presentDays = currentPresentDays(p);
+          const res = await Api.call("closeSalaryMonth", { uid: p.uid, presentDaysOverride: p.isFreelancer ? undefined : presentDays });
           if (res.ok) successCount++;
           else remaining.push(p);
         }
