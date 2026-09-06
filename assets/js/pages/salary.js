@@ -95,6 +95,7 @@ const PageSalary = (() => {
   function presentDaysSub(s) {
     const parts = [];
     if (s.sundayBonusDays > 0) parts.push(`${s.sundayBonusDays} Sunday${s.sundayBonusDays === 1 ? "" : "s"} counted as present`);
+    if (s.holidayBonusDays > 0) parts.push(`${s.holidayBonusDays} holiday${s.holidayBonusDays === 1 ? "" : "s"} counted as present`);
     if (s.paidLeaveUsed > 0) parts.push(`${s.paidLeaveUsed} paid leave day${s.paidLeaveUsed === 1 ? "" : "s"} used`);
     // Leave taken beyond the 1.5-day/month allowance is never added to
     // presentDays — surfaced explicitly so it's obvious those extra days
