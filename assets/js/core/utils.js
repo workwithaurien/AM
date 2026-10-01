@@ -19,6 +19,13 @@ const Utils = (() => {
     const day = String(d.getDate()).padStart(2, "0");
     return `${d.getFullYear()}-${m}-${day}`;
   }
+  /** This month as YYYY-MM in the browser's local timezone — the native
+   *  value format of an <input type="month">, same local-time reasoning
+   *  as todayIso(). */
+  function currentMonthIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
   function initials(name = "") {
     return name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
   }
@@ -67,5 +74,5 @@ const Utils = (() => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
-  return { currency, formatDate, todayIso, initials, avatarInner, debounce, escapeHtml, el, downloadCsv };
+  return { currency, formatDate, todayIso, currentMonthIso, initials, avatarInner, debounce, escapeHtml, el, downloadCsv };
 })();

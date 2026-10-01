@@ -13,6 +13,17 @@ const PageDashboard = (() => {
     return []; // don't block the whole Dashboard over a holidays fetch failure
   }
 
+  /** "Attendance Summary"'s salary.presentDays already includes approved
+   *  overtime (computeSalary_ folds it in for payroll), unlike the
+   *  Attendance/Salary pages which explicitly call it out as a separate
+   *  sub-line — without this, the same employee/month can look like it
+   *  shows two disagreeing Present-Days numbers across pages. */
+  function attendanceSummarySub_(salary) {
+    return salary.overtimeDays > 0
+      ? `Present days this month (incl. ${salary.overtimeDays} overtime day${salary.overtimeDays === 1 ? "" : "s"})`
+      : "Present days this month";
+  }
+
   async function render(mount) {
     // CEO gets a completely different, company-wide master dashboard —
     // see renderCeoOverview — instead of the "my own attendance/salary"
@@ -74,7 +85,7 @@ const PageDashboard = (() => {
     const topCardsHtml = isAdmin
       ? `<div class="grid grid-4">
           ${attendanceLoginCard}
-          ${Card.stat({ label: "Attendance Summary", value: salary.presentDays + "/" + salary.totalWorkingDays, sub: "Present days this month" })}
+          ${Card.stat({ label: "Attendance Summary", value: salary.presentDays + "/" + salary.totalWorkingDays, sub: attendanceSummarySub_(salary) })}
           ${Card.stat({ label: "Today's Working Hours", value: workingHours(todayAttendance), sub: "Auto-tracked from Login/Logout" })}
           ${Card.stat({ label: "Salary Earned Till Date", value: Utils.currency(earnedTillDate), sub: "Based on attendance" })}
         </div>`
@@ -98,7 +109,7 @@ const PageDashboard = (() => {
         </div>`
       : `<div class="grid grid-3">
           ${attendanceLoginCard}
-          ${Card.stat({ label: "Attendance Summary", value: salary.presentDays + "/" + salary.totalWorkingDays, sub: "Present days this month" })}
+          ${Card.stat({ label: "Attendance Summary", value: salary.presentDays + "/" + salary.totalWorkingDays, sub: attendanceSummarySub_(salary) })}
           ${Card.stat({
             label: "Today's Task Drive Link",
             value: todaysTask

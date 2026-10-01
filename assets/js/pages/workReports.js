@@ -71,8 +71,8 @@ const PageWorkReports = (() => {
     return allReports.filter(r => {
       const term = searchTerm.toLowerCase();
       const matchesTerm = !term ||
-        r.clientName.toLowerCase().includes(term) ||
-        r.employeeName.toLowerCase().includes(term);
+        (r.clientName || "").toLowerCase().includes(term) ||
+        (r.employeeName || "").toLowerCase().includes(term);
       const matchesDate = !dateFilter || r.date === dateFilter;
       const matchesEmployee = !employeeFilter || r.employeeName === employeeFilter;
       return matchesTerm && matchesDate && matchesEmployee;
@@ -151,8 +151,11 @@ const PageWorkReports = (() => {
     // employee's own reports; admins see and can act on everyone's) — same
     // permission shape as the edit itself, enforced again server-side in
     // deleteWorkReport_.
-    overlay.querySelector("#wrDelete")?.addEventListener("click", async () => {
+    overlay.querySelector("#wrDelete")?.addEventListener("click", async e => {
       if (!confirm(`Permanently delete this work report for ${existing.clientName}? This can't be undone.`)) return;
+      const btn = e.target;
+      btn.disabled = true;
+      btn.textContent = "Deleting...";
       const res = await Api.call("deleteWorkReport", { id: existing.id });
       if (res.ok) {
         Toast.show("Work report deleted", "success");
@@ -160,6 +163,8 @@ const PageWorkReports = (() => {
         render(document.getElementById("content"));
       } else {
         Toast.show(res.error || "Could not delete report", "error");
+        btn.disabled = false;
+        btn.textContent = "Delete";
       }
     });
 
@@ -176,6 +181,7 @@ const PageWorkReports = (() => {
 
     overlay.querySelector("#wrForm").addEventListener("submit", async e => {
       e.preventDefault();
+      const submitBtn = overlay.querySelector("#wrSubmit");
       const fd = new FormData(e.target);
       const payload = Object.fromEntries(fd.entries());
       if (payload.workType === "Others") payload.workType = payload.workTypeOther.trim();
@@ -183,6 +189,8 @@ const PageWorkReports = (() => {
       delete payload.employeeName; // never sent — locked server-side too
       ["given", "completed", "rejected"].forEach(k => (payload[k] = Number(payload[k])));
       if (isEdit) payload.id = existing.id;
+      submitBtn.disabled = true;
+      submitBtn.textContent = isEdit ? "Saving..." : "Submitting...";
       const res = await Api.call(isEdit ? "updateWorkReport" : "submitWorkReport", payload);
       if (res.ok) {
         Toast.show(isEdit ? "Work report updated" : "Work report submitted", "success");
@@ -190,6 +198,8 @@ const PageWorkReports = (() => {
         render(document.getElementById("content"));
       } else {
         Toast.show(res.error || `Could not ${isEdit ? "update" : "submit"} report`, "error");
+        submitBtn.disabled = false;
+        submitBtn.textContent = isEdit ? "Save Changes" : "Submit";
       }
     });
   }

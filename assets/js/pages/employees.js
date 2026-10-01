@@ -763,19 +763,84 @@ const PageEmployees = (() => {
     });
   }
 
-  /** Records this month's live-computed present days/earnings as a
+  /** Records the chosen month's live-computed present days/earnings as a
    *  permanent "Paid" row in Salary History and resets Advance Taken to
    *  ₹0 — for closing out payroll from within the app instead of typing
    *  rows into the raw Sheet by hand every month. Refuses to double-close
-   *  the same month (enforced server-side). */
-  async function closeSalaryMonth(emp) {
-    if (!confirm(`Close out this month's salary for ${emp.name}? This records their current present days and earnings as a permanent "Paid" entry in Salary History, and resets their Advance Taken to ₹0. This can't be undone.`)) return;
-    const res = await Api.call("closeSalaryMonth", { uid: emp.uid });
-    if (res.ok) {
-      Toast.show("Month closed out and recorded as Paid", "success");
-    } else {
-      Toast.show(res.error || "Could not close out this month", "error");
-    }
+   *  the same month (enforced server-side).
+   *
+   *  Defaults to the current month but lets the CEO pick an earlier one
+   *  — e.g. a month that was never closed out before the next one began
+   *  — since the backend otherwise has no idea which month "close out"
+   *  was ever supposed to mean. Present Days is editable too, same
+   *  override as the Dashboard's "Not Closed Out This Month" card, with
+   *  a live "earned" preview; both re-fetch from getSalary_ whenever the
+   *  month changes. */
+  function closeSalaryMonth(emp) {
+    const bodyHtml = `
+      <form id="csmForm">
+        <div class="field"><label>Month</label>
+          <input class="input" type="month" name="month" value="${Utils.currentMonthIso()}" max="${Utils.currentMonthIso()}" required /></div>
+        <div id="csmPreview" class="card-sub">Loading...</div>
+      </form>`;
+    const footerHtml = `
+      <button class="btn secondary" id="csmCancel" type="button">Cancel</button>
+      <button class="btn" id="csmSubmit" type="submit" form="csmForm">Close Out</button>`;
+    const overlay = Modal.open({ title: `Close Out Month — ${emp.name}`, bodyHtml, footerHtml });
+    overlay.querySelector("#csmCancel").addEventListener("click", Modal.close);
+
+    const monthInput = overlay.querySelector('[name="month"]');
+    const preview = overlay.querySelector("#csmPreview");
+    let currentSalary = null; // the last fetched computeSalary_ result for the selected month
+
+    const loadPreview = async () => {
+      preview.innerHTML = "Loading...";
+      const res = await Api.call("getSalary", { uid: emp.uid, month: monthInput.value });
+      if (!res.ok) { preview.innerHTML = `<span class="text-danger">${Utils.escapeHtml(res.error || "Could not load this month")}</span>`; currentSalary = null; return; }
+      currentSalary = res.salary;
+      if (currentSalary.isFreelancer) {
+        preview.innerHTML = `Freelancer — flat amount: ${Utils.currency(currentSalary.monthlySalary)}`;
+        return;
+      }
+      preview.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px">
+          <span>Present Days</span>
+          <input class="input" type="number" min="0" max="${currentSalary.totalWorkingDays}" step="0.5" id="csmPresentDays" value="${currentSalary.presentDays}" style="width:64px;padding:2px 6px" />
+          <span>of ${currentSalary.totalWorkingDays} ·</span>
+          <span id="csmEarnedPreview">${Utils.currency(Math.round(currentSalary.monthlySalary / currentSalary.totalWorkingDays * currentSalary.presentDays))}</span>
+          <span>earned</span>
+        </div>`;
+      overlay.querySelector("#csmPresentDays").addEventListener("input", e => {
+        const days = Number(e.target.value);
+        const safeDays = isNaN(days) || days < 0 ? currentSalary.presentDays : days;
+        overlay.querySelector("#csmEarnedPreview").textContent =
+          Utils.currency(Math.round(currentSalary.monthlySalary / currentSalary.totalWorkingDays * safeDays));
+      });
+    };
+    monthInput.addEventListener("change", loadPreview);
+    loadPreview();
+
+    overlay.querySelector("#csmForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      if (!currentSalary) return;
+      const presentDaysInput = overlay.querySelector("#csmPresentDays");
+      const presentDays = presentDaysInput ? Number(presentDaysInput.value) : null;
+      const overrideNote = presentDaysInput && presentDays !== currentSalary.presentDays
+        ? ` Present Days will be recorded as ${presentDays} (auto-computed value was ${currentSalary.presentDays}).`
+        : "";
+      if (!confirm(`Close out this month's salary for ${emp.name}? This records their present days and earnings as a permanent "Paid" entry in Salary History, and resets their Advance Taken to ₹0.${overrideNote} This can't be undone.`)) return;
+      const res = await Api.call("closeSalaryMonth", {
+        uid: emp.uid,
+        month: monthInput.value,
+        presentDaysOverride: presentDaysInput ? presentDays : undefined
+      });
+      if (res.ok) {
+        Toast.show("Month closed out and recorded as Paid", "success");
+        Modal.close();
+      } else {
+        Toast.show(res.error || "Could not close out this month", "error");
+      }
+    });
   }
 
   /** Admin sets a new password directly — no need to know the current
