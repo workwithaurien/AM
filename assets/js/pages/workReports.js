@@ -140,11 +140,28 @@ const PageWorkReports = (() => {
       </form>
     `;
     const footerHtml = `
+      ${isEdit ? `<button class="btn danger" id="wrDelete" type="button">Delete</button>` : ""}
       <button class="btn secondary" id="wrCancel" type="button">Cancel</button>
       <button class="btn" id="wrSubmit" type="submit" form="wrForm">${isEdit ? "Save Changes" : "Submit"}</button>
     `;
     const overlay = Modal.open({ title: isEdit ? "Edit Work Report" : "Submit Work Report", bodyHtml, footerHtml });
     overlay.querySelector("#wrCancel").addEventListener("click", Modal.close);
+    // Every report the viewer can even open this modal for is already one
+    // they're allowed to edit (getWorkReports_ only ever returns an
+    // employee's own reports; admins see and can act on everyone's) — same
+    // permission shape as the edit itself, enforced again server-side in
+    // deleteWorkReport_.
+    overlay.querySelector("#wrDelete")?.addEventListener("click", async () => {
+      if (!confirm(`Permanently delete this work report for ${existing.clientName}? This can't be undone.`)) return;
+      const res = await Api.call("deleteWorkReport", { id: existing.id });
+      if (res.ok) {
+        Toast.show("Work report deleted", "success");
+        Modal.close();
+        render(document.getElementById("content"));
+      } else {
+        Toast.show(res.error || "Could not delete report", "error");
+      }
+    });
 
     // "Others" swaps in a free-text field — the typed value is what
     // actually gets saved as Work Type, not the literal word "Others".
