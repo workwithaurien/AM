@@ -94,6 +94,7 @@ const PageSalary = (() => {
 
   function presentDaysSub(s) {
     const parts = [];
+    if (s.isAutoPresent) parts.push("Fixed salary — no attendance deduction");
     if (s.sundayBonusDays > 0) parts.push(`${s.sundayBonusDays} Sunday${s.sundayBonusDays === 1 ? "" : "s"} counted as present`);
     if (s.holidayBonusDays > 0) parts.push(`${s.holidayBonusDays} holiday${s.holidayBonusDays === 1 ? "" : "s"} counted as present`);
     if (s.overtimeDays > 0) parts.push(`${s.overtimeDays} day${s.overtimeDays === 1 ? "" : "s"} extra (overtime)`);

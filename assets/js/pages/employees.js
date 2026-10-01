@@ -254,6 +254,7 @@ const PageEmployees = (() => {
    *  own Salary page. */
   function presentDaysSub(s) {
     const parts = [];
+    if (s.isAutoPresent) parts.push("Fixed salary — no attendance deduction");
     if (s.sundayBonusDays > 0) parts.push(`${s.sundayBonusDays} Sunday${s.sundayBonusDays === 1 ? "" : "s"} counted as present`);
     if (s.holidayBonusDays > 0) parts.push(`${s.holidayBonusDays} holiday${s.holidayBonusDays === 1 ? "" : "s"} counted as present`);
     if (s.overtimeDays > 0) parts.push(`${s.overtimeDays} day${s.overtimeDays === 1 ? "" : "s"} extra (overtime)`);
@@ -892,6 +893,12 @@ const PageEmployees = (() => {
         <div class="field"><label>Documents Folder URL</label>
           <input class="input" type="url" name="documentsFolderUrl" value="${Utils.escapeHtml(emp.documentsFolderUrl || "")}" placeholder="e.g. Google Drive folder link" />
           <span class="card-sub" style="margin-top:-2px">Shown as an "Open Documents Folder" button on this employee's Documents tab.</span></div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400">
+            <input type="checkbox" name="autoPresent" ${emp.autoPresent ? "checked" : ""} style="width:auto" />
+            Fixed salary — auto-mark Present every day
+          </label>
+          <span class="card-sub" style="margin-top:-2px">Paid in full every month no matter what Attendance shows — Present, Absent, Leave, or nothing. Their calendar fills in as Present day by day (never ahead of today); logging in/out still works as normal on top of this.</span></div>
       </form>`;
     const footerHtml = `
       <button class="btn secondary" type="button" id="detCancel">Cancel</button>
@@ -906,13 +913,15 @@ const PageEmployees = (() => {
         designation: fd.get("designation"),
         department: fd.get("department"),
         employmentType: fd.get("employmentType"),
-        documentsFolderUrl: fd.get("documentsFolderUrl")
+        documentsFolderUrl: fd.get("documentsFolderUrl"),
+        autoPresent: fd.get("autoPresent") === "on"
       };
       const res = await Api.call("updateEmployeeDetails", payload);
       if (res.ok) {
         Object.assign(emp, {
           designation: payload.designation, department: payload.department,
-          employmentType: payload.employmentType, documentsFolderUrl: payload.documentsFolderUrl
+          employmentType: payload.employmentType, documentsFolderUrl: payload.documentsFolderUrl,
+          autoPresent: payload.autoPresent
         });
         Toast.show("Details updated", "success");
         Modal.close();
