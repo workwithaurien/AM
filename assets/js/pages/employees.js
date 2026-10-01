@@ -256,9 +256,6 @@ const PageEmployees = (() => {
     const parts = [];
     if (s.sundayBonusDays > 0) parts.push(`${s.sundayBonusDays} Sunday${s.sundayBonusDays === 1 ? "" : "s"} counted as present`);
     if (s.holidayBonusDays > 0) parts.push(`${s.holidayBonusDays} holiday${s.holidayBonusDays === 1 ? "" : "s"} counted as present`);
-    if (s.paidLeaveUsed > 0) parts.push(`${s.paidLeaveUsed} paid leave day${s.paidLeaveUsed === 1 ? "" : "s"} used`);
-    if (s.paidLeaveUnpaid > 0) parts.push(`${s.paidLeaveUnpaid} leave day${s.paidLeaveUnpaid === 1 ? "" : "s"} beyond the allowance — unpaid`);
-    if (s.paidLeaveCashoutDays > 0) parts.push(`${s.paidLeaveCashoutDays}d unused leave cashed out`);
     if (s.overtimeDays > 0) parts.push(`${s.overtimeDays} day${s.overtimeDays === 1 ? "" : "s"} extra (overtime)`);
     return parts.join(" · ");
   }
@@ -623,15 +620,14 @@ const PageEmployees = (() => {
   /** Bottom-bar "Attendance" — pick any employee and browse their
    *  attendance month by month using the same calendar grid + legend as
    *  the employee's own Attendance page (Calendar.monthGrid), plus
-   *  Present/Absent/Paid Leave totals for the month in view. */
+   *  Present/Absent/Leave totals for the month in view. */
   function openAttendanceViewModal() {
     let viewYear = new Date().getFullYear();
     let viewMonth = new Date().getMonth();
     let holidays = [];
     let holidaysLoaded = false;
     const cache = {}; // uid -> records, so browsing months doesn't re-fetch
-    const paidLeaveCache = {}; // uid -> { eligible } — only the eligibility flag is used (it doesn't vary by month; used/remaining do, so those are recomputed per viewed month below instead of trusting the backend's current-month-only figures)
-    const overtimeCache = {}; // uid -> Approved overtime rows [{date, value}] — summed per viewed month below, same idea as paidLeaveCache
+    const overtimeCache = {}; // uid -> Approved overtime rows [{date, value}] — summed per viewed month below, same idea as cache
 
     const bodyHtml = `
       <div class="field"><label>Employee</label>
@@ -645,7 +641,6 @@ const PageEmployees = (() => {
 
     const renderCalendar = uid => {
       const records = cache[uid] || [];
-      const paidLeave = paidLeaveCache[uid] || { eligible: false };
       const overtimeRows = overtimeCache[uid] || [];
       const inMonth = iso => {
         const d = new Date(iso + "T00:00:00");
@@ -654,10 +649,7 @@ const PageEmployees = (() => {
       const monthRows = records.filter(r => inMonth(r.date));
       const leaveRows = monthRows.filter(r => r.status === "Leave");
       // Sums Leave Value (0.5 for a half-day request) rather than just
-      // counting rows, so a half-day leave shows as 0.5, not 1. The
-      // 1.5-day/month paid allowance is applied to whichever month is in
-      // view here (not just "this real month" like the Salary page),
-      // computed client-side since it only needs this same total.
+      // counting rows, so a half-day leave shows as 0.5, not 1.
       const totalLeaveDays = leaveRows.reduce((sum, r) => sum + (Number(r.leaveValue) || 1), 0);
       // A Half Day leave (Leave Value 0.5) means the other half of that
       // day was worked — credit 0.5 toward Present on top of the
@@ -675,20 +667,13 @@ const PageEmployees = (() => {
       const overtimeDays = overtimeRows.filter(o => inMonth(o.date)).reduce((sum, o) => sum + (Number(o.value) || 0), 0);
       const present = monthRows.filter(r => r.status === "Present").length + halfDayPresentCredit;
       const absent = monthRows.filter(r => r.status === "Absent").length;
-      const paidUsed = paidLeave.eligible ? Math.min(totalLeaveDays, 1.5) : 0;
-      const unpaid = paidLeave.eligible ? Math.max(0, totalLeaveDays - 1.5) : totalLeaveDays;
-      const leaveSub = !paidLeave.eligible
-        ? "Not eligible for paid leave (Full Time only)"
-        : unpaid > 0
-          ? `${paidUsed} paid · ${unpaid} unpaid (beyond 1.5/month)`
-          : `${paidUsed} of 1.5 paid this month`;
 
       const wrap = overlay.querySelector("#attResult");
       wrap.innerHTML = `
         <div class="grid grid-3">
           ${Card.stat({ label: "Total Present", value: present, sub: overtimeDays > 0 ? `+${overtimeDays} overtime day${overtimeDays === 1 ? "" : "s"} approved (on top of these)` : "" })}
           ${Card.stat({ label: "Total Absent", value: absent })}
-          ${Card.stat({ label: "Total Leaves", value: totalLeaveDays, sub: leaveSub })}
+          ${Card.stat({ label: "Total Leaves", value: totalLeaveDays })}
         </div>
         <div class="toolbar" style="margin:16px 0 0;justify-content:center">
           <div class="month-nav">
@@ -718,7 +703,6 @@ const PageEmployees = (() => {
         const res = await Api.call("getAttendanceCalendar", { uid });
         if (!res.ok) { wrap.innerHTML = `<div class="empty-state">${res.error}</div>`; return; }
         cache[uid] = res.records;
-        paidLeaveCache[uid] = res.paidLeave || { eligible: false };
         overtimeCache[uid] = res.overtime || [];
       }
       if (!holidaysLoaded) {
@@ -826,9 +810,9 @@ const PageEmployees = (() => {
 
   const EMPLOYMENT_TYPES = ["Full Time", "Part Time", "Intern", "Freelancer"];
 
-  /** Designation, Department, and Employment Type together — only Full
-   *  Time gets the 1.5 paid-leave-days/month rule in the Salary
-   *  calculation; Part Time and Intern Leave days stay unpaid. */
+  /** Designation, Department, and Employment Type together — Employment
+   *  Type "Freelancer" is paid a flat amount each cycle instead of via
+   *  Present-Days attendance (see computeSalary_'s isFreelancer branch). */
   function openEditDetailsModal(emp) {
     const bodyHtml = `
       <form id="detForm">
@@ -843,7 +827,6 @@ const PageEmployees = (() => {
         <div class="field"><label>Documents Folder URL</label>
           <input class="input" type="url" name="documentsFolderUrl" value="${Utils.escapeHtml(emp.documentsFolderUrl || "")}" placeholder="e.g. Google Drive folder link" />
           <span class="card-sub" style="margin-top:-2px">Shown as an "Open Documents Folder" button on this employee's Documents tab.</span></div>
-        <div class="card-sub">Only Full Time employees get the 1.5 paid leave days/month benefit when their salary is calculated — Part Time and Intern leave days aren't paid.</div>
       </form>`;
     const footerHtml = `
       <button class="btn secondary" type="button" id="detCancel">Cancel</button>

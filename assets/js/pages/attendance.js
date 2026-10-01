@@ -20,9 +20,8 @@ const PageAttendance = (() => {
     const holidays = holRes.holidays;
     const attendance = attRes.records;
     const overtime = attRes.overtime || [];
-    const paidLeave = attRes.paidLeave || { eligible: false, allowance: 0, taken: 0, used: 0, remaining: 0, cashoutDays: 0 };
 
-    mount.innerHTML = Auth.isAdmin() ? adminView(holidays, attendance, overtime) : employeeView(holidays, attendance, overtime, paidLeave);
+    mount.innerHTML = Auth.isAdmin() ? adminView(holidays, attendance, overtime) : employeeView(holidays, attendance, overtime);
 
     if (Auth.isAdmin()) {
       document.getElementById("addHolidayBtn").addEventListener("click", () => openHolidayModal(null));
@@ -103,18 +102,17 @@ const PageAttendance = (() => {
       </div>`;
   }
 
-  function employeeView(holidays, attendance, overtime, paidLeave) {
+  function employeeView(holidays, attendance, overtime) {
     const counts = countsFor(holidays, attendance, overtime, viewYear, viewMonth);
     const monthHolidays = holidays.filter(h => {
       const d = new Date(h.date + "T00:00:00");
       return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
     });
     return `
-      <div class="grid grid-4">
+      <div class="grid grid-3">
         ${Card.stat({ label: "Present Days", value: counts.present, sub: overtimeSub_(counts.overtimeDays) })}
         ${Card.stat({ label: "Absent Days", value: counts.absent })}
         ${Card.stat({ label: "Holidays", value: counts.holidays })}
-        ${paidLeaveCardHtml(paidLeave)}
       </div>
       <div class="grid grid-4" style="margin-top:14px;align-items:start">
         <div class="card" style="grid-column:span 2">
@@ -144,22 +142,6 @@ const PageAttendance = (() => {
     `;
   }
 
-  /** Paid Leave tab: 1.5 days/month for Full Time employees only, resets
-   *  every month \u2014 any of it left unused when the month ends is converted
-   *  to a one-time salary bonus the following month (paidLeave.cashoutDays),
-   *  not carried forward as extra leave days. */
-  function paidLeaveCardHtml(paidLeave) {
-    if (!paidLeave.eligible) {
-      return Card.stat({ label: "Paid Leave", value: "Not eligible", sub: "Full Time employees only" });
-    }
-    return Card.stat({
-      label: "Paid Leave (This Month)",
-      value: `${paidLeave.used} taken \u00B7 ${paidLeave.remaining} left`,
-      sub: paidLeave.cashoutDays > 0
-        ? `+${paidLeave.cashoutDays}d unused leave added to this month's salary`
-        : "Resets to 1.5 days every month"
-    });
-  }
 
   function adminView(holidays, attendance, overtime) {
     const year = new Date().getFullYear();
